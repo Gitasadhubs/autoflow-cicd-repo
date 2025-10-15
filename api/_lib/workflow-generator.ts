@@ -79,8 +79,26 @@ export const generateWorkflowLogic = async ({
       },
     });
 
-    const jsonString = geminiResponse.text.trim();
-    const parsed = JSON.parse(jsonString);
+    let parsed;
+    try {
+        const jsonString = geminiResponse.text.trim();
+        if (!jsonString) {
+            throw new Error("Gemini API returned an empty response.");
+        }
+        parsed = JSON.parse(jsonString);
+    } catch (e) {
+        console.error("Failed to parse Gemini response as JSON.");
+        console.error("Raw Gemini Response Text:", geminiResponse.text);
+        throw new Error("The AI model returned a response that was not valid JSON. Please try again.");
+    }
+
+    // Validate that the parsed object has the properties we expect.
+    if (!parsed.workflow || !('requiredVariables' in parsed) || !('requiredSecrets' in parsed)) {
+        console.error("Parsed JSON from Gemini is missing required properties.");
+        console.error("Parsed Object:", parsed);
+        throw new Error("The AI model's response was incomplete or malformed.");
+    }
+
 
     return {
         yaml: parsed.workflow,
