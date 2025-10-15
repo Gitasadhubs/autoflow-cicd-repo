@@ -108,7 +108,8 @@ const PipelineConfigurator: React.FC<PipelineConfiguratorProps> = ({ repo, token
         }, 1000); // Close modal after a short delay to show success
     } catch(error) {
         console.error("Failed to commit workflow file or set secrets/variables", error);
-        // Fix: The caught error is of type 'unknown'. Cast to 'Error' to access the 'message' property.
+        // FIX: The caught error is of type 'unknown' and cannot be directly assigned to a state that expects a string.
+        // It must be converted to a string before being used.
         const errorMessage = error instanceof Error ? error.message : String(error);
         setCommitError(errorMessage);
         setIsCommitting(false);
