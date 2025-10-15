@@ -7,6 +7,21 @@ export interface User {
   login: string; // GitHub username
 }
 
+export enum WorkflowRunStatus {
+  Success = 'success',
+  Failure = 'failure',
+  InProgress = 'in_progress',
+  Queued = 'queued',
+  Cancelled = 'cancelled',
+  Neutral = 'neutral',
+  Skipped = 'skipped',
+  TimedOut = 'timed_out',
+  ActionRequired = 'action_required',
+  Completed = 'completed', // A general completed state if conclusion is null
+  Unknown = 'unknown',
+}
+
+
 // Represents a repository, based on the GitHub API response
 export interface Repository {
   id: number;
@@ -26,6 +41,8 @@ export interface Repository {
     push: boolean;
     pull: boolean;
   };
+  latestRunStatus?: WorkflowRunStatus;
+  latestRunUrl?: string;
 }
 
 export enum DeploymentStatus {

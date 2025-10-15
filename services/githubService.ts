@@ -1,4 +1,4 @@
-import { User, Repository, Deployment, DeploymentStatus, DeploymentStatusPayload } from '../types';
+import { User, Repository, Deployment, DeploymentStatus, DeploymentStatusPayload, WorkflowRunStatus } from '../types';
 
 const GITHUB_API_BASE = 'https://api.github.com';
 
@@ -58,6 +58,65 @@ export const hasWorkflows = async (token: string, owner: string, repo: string): 
         return false;
     }
 }
+
+// Interface for the GitHub API response for a workflow run
+interface GitHubWorkflowRun {
+    id: number;
+    status: 'queued' | 'in_progress' | 'completed';
+    conclusion: 'success' | 'failure' | 'neutral' | 'cancelled' | 'skipped' | 'timed_out' | 'action_required' | null;
+    html_url: string;
+}
+
+// Function to get the latest workflow run for a repository
+export const getLatestWorkflowRun = async (
+    token: string,
+    owner: string,
+    repo: string
+): Promise<{ status: WorkflowRunStatus; url: string } | null> => {
+    try {
+        const response = await githubApiRequest<{ workflow_runs: GitHubWorkflowRun[] }>(
+            `/repos/${owner}/${repo}/actions/runs?per_page=1`,
+            token
+        );
+
+        if (!response.workflow_runs || response.workflow_runs.length === 0) {
+            return null;
+        }
+
+        const latestRun = response.workflow_runs[0];
+        
+        let status: WorkflowRunStatus;
+        
+        if (latestRun.status === 'in_progress') {
+            status = WorkflowRunStatus.InProgress;
+        } else if (latestRun.status === 'queued') {
+            status = WorkflowRunStatus.Queued;
+        } else if (latestRun.status === 'completed') {
+            switch (latestRun.conclusion) {
+                case 'success': status = WorkflowRunStatus.Success; break;
+                case 'failure': status = WorkflowRunStatus.Failure; break;
+                case 'cancelled': status = WorkflowRunStatus.Cancelled; break;
+                case 'skipped': status = WorkflowRunStatus.Skipped; break;
+                case 'timed_out': status = WorkflowRunStatus.TimedOut; break;
+                case 'neutral': status = WorkflowRunStatus.Neutral; break;
+                case 'action_required': status = WorkflowRunStatus.ActionRequired; break;
+                default: status = WorkflowRunStatus.Completed; break;
+            }
+        } else {
+            status = WorkflowRunStatus.Unknown;
+        }
+
+        return {
+            status,
+            url: latestRun.html_url,
+        };
+    } catch (error) {
+        if (!(error instanceof Error && error.message.includes('404'))) {
+             console.error(`Could not fetch workflow runs for ${owner}/${repo}:`, error);
+        }
+        return null;
+    }
+};
 
 // Function to get deployments for a specific repository
 export const getDeploymentsForRepo = async (token:string, owner: string, repo: string): Promise<(Deployment & { status: DeploymentStatus, duration: string })[]> => {

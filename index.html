@@ -2,7 +2,7 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3e%3cpath d='M8 22L12 17L16 22H8Z' fill='%2322c55e'/%3e%3cpath d='M17 11L20 16H17V11Z' fill='%2322c55e'/%3e%3cpath d='M7 11L4 16H7V11Z' fill='%2322c55e'/%3e%3cpath d='M17 3C17 3 14 1 12 1C10 1 7 3 7 3V18H17V3Z' fill='%23f97316'/%3e%3ccircle cx='12' cy='8' r='3' fill='%23FFF' stroke='%23e5e7eb' stroke-width='0.5'/%3e%3c/svg%3e" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>AutoFlow CI/CD</title>
     <script src="https://cdn.tailwindcss.com"></script>
@@ -12,22 +12,49 @@
         theme: {
           extend: {
             colors: {
-              'brand-primary': '#1e40af',
-              'brand-secondary': '#3b82f6',
-              'brand-light': '#dbeafe',
-              'brand-dark': '#1e3a8a',
-              'status-success': '#16a34a',
-              'status-in-progress': '#f97316',
-              'status-failed': '#dc2626',
+              'brand-primary': '#f97316',    // orange-500
+              'brand-secondary': '#fb923c',  // orange-400
+              'brand-dark': '#ea580c',      // orange-600
+              'brand-bg': '#0f172a',        // slate-900
+              'brand-surface': '#1f2937',   // gray-800
+              'status-success': '#22c55e',   // green-500
+              'status-in-progress': '#eab308', // yellow-500
+              'status-failed': '#ef4444',     // red-500
+            },
+            keyframes: {
+              'scale-up': {
+                '0%': { transform: 'scale(0.95)', opacity: '0' },
+                '100%': { transform: 'scale(1)', opacity: '1' },
+              },
+              'rocket-float': {
+                '0%, 100%': { transform: 'translateY(0) rotate(-1deg)' },
+                '50%': { transform: 'translateY(-8px) rotate(1deg)' },
+              }
             },
             animation: {
               'spin-slow': 'spin 3s linear infinite',
               'pulse-fast': 'pulse 1s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+              'scale-up': 'scale-up 0.2s ease-out forwards',
+              'rocket-float': 'rocket-float 2s ease-in-out infinite',
             }
           }
         }
       }
     </script>
+    <style>
+      body {
+        background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' width='100%25' height='100%25'%3e%3cdefs%3e%3cradialGradient id='grad' cx='50%25' cy='50%25' r='70%25'%3e%3cstop offset='0%25' stop-color='%231e293b' /%3e%3cstop offset='100%25' stop-color='%230f172a' /%3e%3c/radialGradient%3e%3cpattern id='pattern-stars' height='100' width='100' patternUnits='userSpaceOnUse'%3e%3ccircle fill='%23ffffff' cx='5' cy='5' r='0.8' opacity='0.8'%3e%3c/circle%3e%3ccircle fill='%23ffffff' cx='50' cy='20' r='0.5' opacity='0.5'%3e%3c/circle%3e%3ccircle fill='%23ffffff' cx='90' cy='40' r='1' opacity='0.9'%3e%3c/circle%3e%3ccircle fill='%23ffffff' cx='30' cy='60' r='0.6' opacity='0.6'%3e%3c/circle%3e%3ccircle fill='%23ffffff' cx='70' cy='85' r='0.7' opacity='0.7'%3e%3c/circle%3e%3c/pattern%3e%3c/defs%3e%3crect width='100%25' height='100%25' fill='url(%23grad)' /%3e%3crect width='100%25' height='100%25' fill='url(%23pattern-stars)' opacity='0.5'/%3e%3c/svg%3e");
+        background-size: cover;
+        background-position: center center;
+        background-attachment: fixed;
+      }
+      .login-page-background {
+        background-color: #0f172a;
+        background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 800 800'%3e%3cdefs%3e%3cradialGradient id='bgGradient' cx='50%25' cy='50%25' r='50%25'%3e%3cstop offset='0%25' stop-color='%231e293b' /%3e%3cstop offset='100%25' stop-color='%230f172a' /%3e%3c/radialGradient%3e%3cfilter id='glow-filter'%3e%3cfeGaussianBlur stdDeviation='5' result='coloredBlur'/%3e%3cfeMerge%3e%3cfeMergeNode in='coloredBlur'/%3e%3cfeMergeNode in='SourceGraphic'/%3e%3c/feMerge%3e%3c/filter%3e%3c/defs%3e%3crect width='100%25' height='100%25' fill='url(%23bgGradient)' /%3e%3cg filter='url(%23glow-filter)' opacity='0.7'%3e%3cpath d='M-100 400 Q 200 200, 400 400 T 900 400' stroke='%23f97316' stroke-width='2' fill='none' stroke-linecap='round' stroke-dasharray='10 20'%3e%3canimate attributeName='stroke-dashoffset' from='0' to='30' dur='4s' repeatCount='indefinite' /%3e%3c/path%3e%3cpath d='M900 200 Q 600 400, 400 200 T -100 200' stroke='%23fb923c' stroke-width='1.5' fill='none' stroke-linecap='round' stroke-dasharray='5 15'%3e%3canimate attributeName='stroke-dashoffset' from='20' to='0' dur='3.5s' repeatCount='indefinite' /%3e%3c/path%3e%3cpath d='M-100 600 Q 300 700, 400 500 T 900 600' stroke='%230ea5e9' stroke-width='1' fill='none' stroke-linecap='round' stroke-dasharray='20 20'%3e%3canimate attributeName='stroke-dashoffset' from='0' to='-40' dur='5s' repeatCount='indefinite' /%3e%3c/path%3e%3cpath d='M-100 100 Q 150 50, 400 150 T 900 50' stroke='%2322d3ee' stroke-width='1' fill='none' stroke-linecap='round' stroke-dasharray='10 10'%3e%3canimate attributeName='stroke-dashoffset' from='0' to='20' dur='6s' repeatCount='indefinite' /%3e%3c/path%3e%3c/g%3e%3c/svg%3e");
+        background-size: cover;
+        background-position: center center;
+      }
+    </style>
 <script type="importmap">
 {
   "imports": {
@@ -40,12 +67,13 @@
     "cors": "https://aistudiocdn.com/cors@^2.8.5",
     "path": "https://aistudiocdn.com/path@^0.12.7",
     "url": "https://aistudiocdn.com/url@^0.11.4",
-    "@google/genai": "https://aistudiocdn.com/@google/genai@^1.25.0"
+    "@google/genai": "https://aistudiocdn.com/@google/genai@^1.25.0",
+    "@vercel/node": "https://aistudiocdn.com/@vercel/node@^5.4.0"
   }
 }
 </script>
 </head>
-  <body class="bg-gray-50 dark:bg-gray-900">
+  <body class="bg-brand-bg">
     <div id="root"></div>
     <script type="module" src="/index.tsx"></script>
   </body>

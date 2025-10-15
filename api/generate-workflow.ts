@@ -1,12 +1,11 @@
-
-
-// FIX: To resolve type conflicts with global Request/Response objects, the express types
-// are now referenced through the 'express' namespace, ensuring the correct properties
-// like .method, .body, and .status() are available.
-import type * as express from 'express';
+// FIX: Using Vercel's specific request and response types for serverless functions
+// avoids conflicts with global types and ensures compatibility with the Vercel environment.
+// The properties `.method`, `.body`, and methods like `.status()` are available and
+// correctly typed on `VercelRequest` and `VercelResponse`.
+import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { generateWorkflowLogic } from './_lib/workflow-generator';
 
-export default async function handler(req: express.Request, res: express.Response) {
+export default async function handler(req: VercelRequest, res: VercelResponse) {
   // Ensure the request method is POST
   if (req.method !== 'POST') {
     res.setHeader('Allow', ['POST']);

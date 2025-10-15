@@ -3,6 +3,7 @@ import LoginPage from './components/LoginPage';
 import Dashboard from './components/Dashboard';
 import { User } from './types';
 import { getUser } from './services/githubService';
+import { LogoIcon } from './components/icons';
 
 const App: React.FC = () => {
   const [token, setToken] = useState<string | null>(null);
@@ -47,8 +48,9 @@ const App: React.FC = () => {
   
   if (isLoading) {
       return (
-          <div className="min-h-screen bg-gray-100 dark:bg-gray-900 flex items-center justify-center">
-              <p className="text-gray-500 dark:text-gray-400">Loading application...</p>
+          <div className="min-h-screen bg-brand-bg flex flex-col items-center justify-center">
+              <LogoIcon className="w-20 h-20 animate-rocket-float" />
+              <p className="text-gray-400 mt-4 text-lg font-semibold">Launching AutoFlow...</p>
           </div>
       )
   }
