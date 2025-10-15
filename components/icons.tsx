@@ -20,13 +20,29 @@ export const FirebaseIcon: React.FC<{ className?: string }> = ({ className }) =>
 
 export const LogoIcon: React.FC<{ className?: string }> = ({ className }) => (
     <svg className={className} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <path d="M8 22L12 17L16 22H8Z" fill="#22c55e"/>
-        <path d="M17 11L20 16H17V11Z" fill="#22c55e"/>
-        <path d="M7 11L4 16H7V11Z" fill="#22c55e"/>
-        <path d="M17 3C17 3 14 1 12 1C10 1 7 3 7 3V18H17V3Z" fill="#f97316"/>
-        <circle cx="12" cy="8" r="3" fill="#FFF" stroke="#e5e7eb" strokeWidth="0.5"/>
+        <defs>
+            <linearGradient id="grad1" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" style={{stopColor:'#f97316', stopOpacity:1}} />
+                <stop offset="100%" style={{stopColor:'#fb923c', stopOpacity:1}} />
+            </linearGradient>
+            <linearGradient id="grad2" x1="0%" y1="100%" x2="100%" y2="0%">
+                <stop offset="0%" style={{stopColor:'#22c55e', stopOpacity:1}} />
+                <stop offset="100%" style={{stopColor:'#4ade80', stopOpacity:1}} />
+            </linearGradient>
+        </defs>
+        {/* Rocket Flame */}
+        <path d="M9 18 C10 22, 14 22, 15 18 C14 20, 10 20, 9 18 Z" fill="url(#grad1)" />
+        {/* Left Fin */}
+        <path d="M9.5 11 L6 18 L9.5 15 Z" fill="url(#grad2)" />
+        {/* Right Fin */}
+        <path d="M14.5 11 L18 18 L14.5 15 Z" fill="url(#grad2)" />
+        {/* Rocket Body */}
+        <path d="M12 2 C10 6, 9.5 10, 9.5 17 H 14.5 C 14.5 10, 14 6, 12 2 Z" fill="#e5e7eb" />
+        {/* Window */}
+        <circle cx="12" cy="9" r="2.5" fill="#4b5563" stroke="#e5e7eb" strokeWidth="1" />
     </svg>
 );
+
 
 export const CheckCircleIcon: React.FC<{ className?: string }> = ({ className }) => (
     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={className}>

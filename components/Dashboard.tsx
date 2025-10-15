@@ -2,7 +2,7 @@ import React, { useState, useCallback, useEffect } from 'react';
 import { User, Repository, Deployment, DeploymentStatus, WorkflowRunStatus } from '../types';
 import PipelineConfigurator from './PipelineConfigurator';
 import LogViewer from './LogViewer';
-import Documentation from './Documentation';
+import DocsChat from './DocsChat';
 import { GitHubIcon, CheckCircleIcon, XCircleIcon, ArrowPathIcon, CodeBracketIcon, LockClosedIcon, StopCircleIcon, LogoIcon, QuestionMarkCircleIcon } from './icons';
 import { getRepos, getDeploymentsForRepo, hasWorkflows, getLatestWorkflowRun } from '../services/githubService';
 
@@ -26,10 +26,10 @@ const Header: React.FC<{ user: User; onLogout: () => void; onShowDocs: () => voi
       <button 
         onClick={onShowDocs} 
         className="bg-gray-700 hover:bg-gray-600 text-white font-semibold py-2 px-4 rounded-lg transition duration-300 flex items-center"
-        title="Open Documentation"
+        title="Chat with Documentation AI"
       >
         <QuestionMarkCircleIcon className="w-5 h-5 mr-0 md:mr-2" />
-        <span className="hidden md:block">Docs</span>
+        <span className="hidden md:block">Chat with Docs</span>
       </button>
       <button onClick={onLogout} className="bg-red-600 hover:bg-red-700 text-white font-semibold py-2 px-4 rounded-lg transition duration-300">
         Logout
@@ -174,7 +174,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, token, onLogout }) => {
   const [configRepo, setConfigRepo] = useState<Repository | null>(null); // Repo for pipeline configurator modal
   const [selectedRepo, setSelectedRepo] = useState<Repository | null>(null); // Repo for viewing deployments
   const [viewingLogs, setViewingLogs] = useState<Deployment | null>(null);
-  const [showDocs, setShowDocs] = useState<boolean>(false);
+  const [showDocsChat, setShowDocsChat] = useState<boolean>(false);
   
   const [repoError, setRepoError] = useState<string | null>(null);
   const [deploymentError, setDeploymentError] = useState<string | null>(null);
@@ -243,7 +243,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, token, onLogout }) => {
 
   return (
     <div className="min-h-screen bg-brand-bg text-gray-200">
-      <Header user={user} onLogout={onLogout} onShowDocs={() => setShowDocs(true)} />
+      <Header user={user} onLogout={onLogout} onShowDocs={() => setShowDocsChat(true)} />
       <main className="p-4 md:p-8">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           
@@ -337,8 +337,8 @@ const Dashboard: React.FC<DashboardProps> = ({ user, token, onLogout }) => {
       {viewingLogs && (
         <LogViewer deployment={viewingLogs} onClose={() => setViewingLogs(null)} />
       )}
-      {showDocs && (
-        <Documentation onClose={() => setShowDocs(false)} />
+      {showDocsChat && (
+        <DocsChat onClose={() => setShowDocsChat(false)} />
       )}
     </div>
   );

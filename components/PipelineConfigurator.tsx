@@ -27,6 +27,7 @@ const PipelineConfigurator: React.FC<PipelineConfiguratorProps> = ({ repo, token
   const [commitStatus, setCommitStatus] = useState('');
   const [isCopied, setIsCopied] = useState<boolean>(false);
   const [commitError, setCommitError] = useState<string | null>(null);
+  const [generationError, setGenerationError] = useState<string | null>(null);
 
   useEffect(() => {
     // Pre-fill variable values with defaults when they are loaded
@@ -46,11 +47,20 @@ const PipelineConfigurator: React.FC<PipelineConfiguratorProps> = ({ repo, token
     setVariableValues({});
     setSecretValues({});
     setVisibleSecrets({});
-    const { yaml, variables, secrets } = await generateWorkflow(techStack, deploymentTarget, deploymentEnvironment, repo.name);
-    setGeneratedYaml(yaml);
-    setRequiredVariables(variables);
-    setRequiredSecrets(secrets);
-    setIsLoading(false);
+    setGenerationError(null);
+
+    try {
+        const { yaml, variables, secrets } = await generateWorkflow(techStack, deploymentTarget, deploymentEnvironment, repo.name);
+        setGeneratedYaml(yaml);
+        setRequiredVariables(variables);
+        setRequiredSecrets(secrets);
+    } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : "An unknown error occurred during workflow generation.";
+        setGenerationError(errorMessage);
+        console.error("Workflow generation failed:", error);
+    } finally {
+        setIsLoading(false);
+    }
   }, [techStack, deploymentTarget, deploymentEnvironment, repo.name]);
   
   const handleVariableChange = (name: string, value: string) => {
@@ -176,6 +186,13 @@ const PipelineConfigurator: React.FC<PipelineConfiguratorProps> = ({ repo, token
               <><CodeBracketIcon className="h-5 w-5 mr-2" />Generate Workflow File</>
             )}
           </button>
+
+          {generationError && (
+            <div className="p-4 bg-red-500/10 border border-red-500/30 rounded-lg text-red-400 text-sm">
+                <p className="font-bold">Generation Failed</p>
+                <p className="mt-1">{generationError}</p>
+            </div>
+          )}
 
           {requiredVariables.length > 0 && (
             <fieldset className="p-4 border border-gray-700 rounded-lg">

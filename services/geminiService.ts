@@ -1,4 +1,5 @@
 import { TechStack, DeploymentTarget, DeploymentEnvironment, RequiredVariable, RequiredSecret } from '../types';
+import { API_ENDPOINT_GENERATE_WORKFLOW } from '../constants';
 
 interface WorkflowGenerationResponse {
   yaml: string;
@@ -12,8 +13,11 @@ export const generateWorkflow = async (
   deploymentEnvironment: DeploymentEnvironment,
   repoName: string
 ): Promise<WorkflowGenerationResponse> => {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 30000); // 30-second timeout
+
   try {
-    const response = await fetch('/api/generate-workflow', {
+    const response = await fetch(API_ENDPOINT_GENERATE_WORKFLOW, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -24,7 +28,11 @@ export const generateWorkflow = async (
         deploymentEnvironment,
         repoName,
       }),
+      signal: controller.signal, // Pass the signal to fetch
     });
+
+    // Clear the timeout if the request completes in time
+    clearTimeout(timeoutId);
 
     if (!response.ok) {
       // Robust error handling: try to parse as JSON, fall back to text.
@@ -51,12 +59,15 @@ export const generateWorkflow = async (
       secrets: data.secrets || [],
     };
   } catch (error) {
+    clearTimeout(timeoutId);
+    if (error instanceof Error && error.name === 'AbortError') {
+        console.error("Request timed out after 30 seconds.");
+        throw new Error("The request timed out after 30 seconds. The server may be overloaded or the AI is taking too long. Please try again.");
+    }
+
     console.error("Error generating workflow:", error);
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    return {
-      yaml: `# An error occurred while communicating with the workflow generation service.\n# Please check the server logs.\n# Error: ${errorMessage}`,
-      variables: [],
-      secrets: [],
-    };
+    // Re-throw the error so the UI component can handle it,
+    // providing a better user experience than embedding errors in YAML.
+    throw error;
   }
 };
