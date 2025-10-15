@@ -1,13 +1,13 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { LogoIcon } from './icons';
-import { API_ENDPOINT_CHAT_WITH_DOCS } from '../constants';
+import { API_ENDPOINT_BUDDY_BOT_CHAT } from '../constants';
 
 interface Message {
   role: 'user' | 'assistant';
   content: string;
 }
 
-interface DocsChatProps {
+interface BuddyBotProps {
   onClose: () => void;
 }
 
@@ -31,9 +31,9 @@ const MessageContent: React.FC<{ content: string }> = ({ content }) => {
 };
 
 
-const DocsChat: React.FC<DocsChatProps> = ({ onClose }) => {
+const BuddyBot: React.FC<BuddyBotProps> = ({ onClose }) => {
     const [messages, setMessages] = useState<Message[]>([
-        { role: 'assistant', content: "Hi! I'm Flowy, your AI assistant for AutoFlow. How can I help you get started?" }
+        { role: 'assistant', content: "Hi! I'm Buddy Bot, your AI assistant for AutoFlow. How can I help you get started?" }
     ]);
     const [input, setInput] = useState('');
     const [isLoading, setIsLoading] = useState(false);
@@ -63,7 +63,7 @@ const DocsChat: React.FC<DocsChatProps> = ({ onClose }) => {
         setMessages(prev => [...prev, { role: 'assistant', content: '' }]);
 
         try {
-            const response = await fetch(API_ENDPOINT_CHAT_WITH_DOCS, {
+            const response = await fetch(API_ENDPOINT_BUDDY_BOT_CHAT, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ messages: newMessages }),
@@ -115,7 +115,7 @@ const DocsChat: React.FC<DocsChatProps> = ({ onClose }) => {
                 <div className="p-4 border-b border-gray-700 flex justify-between items-center flex-shrink-0">
                     <div className="flex items-center space-x-3">
                          <LogoIcon className="h-7 w-7 text-brand-primary" />
-                         <h2 className="text-xl font-bold text-gray-100">Chat with Flowy</h2>
+                         <h2 className="text-xl font-bold text-gray-100">Chat with Buddy Bot</h2>
                     </div>
                     <button onClick={onClose} className="text-gray-400 hover:text-white text-3xl leading-none">&times;</button>
                 </div>
@@ -174,4 +174,4 @@ const DocsChat: React.FC<DocsChatProps> = ({ onClose }) => {
     );
 };
 
-export default DocsChat;
+export default BuddyBot;

@@ -111,3 +111,10 @@ export const QuestionMarkCircleIcon: React.FC<{ className?: string }> = ({ class
         <path strokeLinecap="round" strokeLinejoin="round" d="M9.879 7.519c1.171-1.025 3.071-1.025 4.242 0 1.172 1.025 1.172 2.687 0 3.712-.203.179-.43.326-.67.442-.745.361-1.45.999-1.45 1.827v.75M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9 5.25h.008v.008H12v-.008z" />
     </svg>
 );
+
+export const ChatBubbleOvalLeftIcon: React.FC<{ className?: string }> = ({ className }) => (
+    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={className}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M20.25 8.511c.884.284 1.5 1.128 1.5 2.097v4.286c0 1.136-.847 2.1-1.98 2.193l-3.72-3.72a1.5 1.5 0 010-2.122l3.72-3.72zM3.75 8.511c-.884.284-1.5 1.128-1.5 2.097v4.286c0 1.136.847 2.1 1.98 2.193l3.72-3.72a1.5 1.5 0 010-2.122l-3.72-3.72z" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M12 15.75l3.75-3.75a1.5 1.5 0 00-2.122-2.122L12 11.25l-1.878-1.879a1.5 1.5 0 00-2.122 2.122L12 15.75z" />
+    </svg>
+);
