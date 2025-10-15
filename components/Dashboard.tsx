@@ -1,3 +1,4 @@
+
 import React, { useState, useCallback, useEffect } from 'react';
 import { User, Repository, Deployment, DeploymentStatus } from '../types';
 import PipelineConfigurator from './PipelineConfigurator';
@@ -45,29 +46,45 @@ const timeSince = (dateString: string) => {
     return Math.floor(seconds) + " seconds ago";
 }
 
-const RepositoryListItem: React.FC<{ repo: Repository; onConfigure: (repo: Repository) => void }> = ({ repo, onConfigure }) => (
-    <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow-sm hover:shadow-lg transition-shadow duration-300 flex justify-between items-center">
-        <div>
-            <div className="flex items-center space-x-3">
-                <a href={`https://github.com/${repo.full_name}`} target="_blank" rel="noopener noreferrer" className="font-bold text-brand-primary dark:text-brand-secondary hover:underline">{repo.name}</a>
-                {repo.private && <LockClosedIcon className="w-4 h-4 text-gray-500" title="Private Repository" />}
+const RepositoryListItem: React.FC<{ 
+    repo: Repository; 
+    onConfigure: (repo: Repository) => void;
+    onSelect: (repo: Repository) => void;
+    isSelected: boolean;
+}> = ({ repo, onConfigure, onSelect, isSelected }) => (
+    <div 
+        onClick={() => onSelect(repo)}
+        className={`p-4 rounded-lg shadow-sm hover:shadow-lg transition-all duration-300 cursor-pointer ${isSelected ? 'bg-brand-light dark:bg-brand-dark ring-2 ring-brand-secondary' : 'bg-white dark:bg-gray-800'}`}
+    >
+        <div className="flex justify-between items-center">
+            <div>
+                <div className="flex items-center space-x-3">
+                    <a href={`https://github.com/${repo.full_name}`} target="_blank" rel="noopener noreferrer" className="font-bold text-brand-primary dark:text-brand-secondary hover:underline">{repo.name}</a>
+                    {repo.private && <LockClosedIcon className="w-4 h-4 text-gray-500" title="Private Repository" />}
+                </div>
+                <p className="text-sm text-gray-500 dark:text-gray-400 mt-1 truncate">{repo.description || 'No description available.'}</p>
+                <div className="flex items-center space-x-4 mt-2 text-xs text-gray-500 dark:text-gray-400">
+                    {repo.language && <span className="flex items-center"><CodeBracketIcon className="w-3 h-3 mr-1" />{repo.language}</span>}
+                    <span>Updated {timeSince(repo.updated_at)}</span>
+                </div>
             </div>
-            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1 truncate">{repo.description || 'No description available.'}</p>
-            <div className="flex items-center space-x-4 mt-2 text-xs text-gray-500 dark:text-gray-400">
-                {repo.language && <span className="flex items-center"><CodeBracketIcon className="w-3 h-3 mr-1" />{repo.language}</span>}
-                <span>Updated {timeSince(repo.updated_at)}</span>
-            </div>
+            {repo.has_workflows ? (
+                <span className="flex items-center text-sm font-medium text-status-success bg-green-100 dark:bg-green-900/50 py-1 px-3 rounded-full">
+                    <CheckCircleIcon className="w-4 h-4 mr-1.5" />
+                    Pipeline Active
+                </span>
+            ) : (
+                <button 
+                    onClick={(e) => {
+                        e.stopPropagation(); // Prevent onSelect from firing when clicking the button
+                        onConfigure(repo);
+                    }} 
+                    className="bg-brand-secondary hover:bg-brand-dark text-white font-semibold py-2 px-4 rounded-lg transition duration-300 whitespace-nowrap"
+                >
+                    Configure Pipeline
+                </button>
+            )}
         </div>
-        {repo.has_workflows ? (
-             <span className="flex items-center text-sm font-medium text-status-success bg-green-100 dark:bg-green-900/50 py-1 px-3 rounded-full">
-                <CheckCircleIcon className="w-4 h-4 mr-1.5" />
-                Pipeline Active
-            </span>
-        ) : (
-            <button onClick={() => onConfigure(repo)} className="bg-brand-secondary hover:bg-brand-dark text-white font-semibold py-2 px-4 rounded-lg transition duration-300 whitespace-nowrap">
-                Configure Pipeline
-            </button>
-        )}
     </div>
 );
 
@@ -108,19 +125,20 @@ const Dashboard: React.FC<DashboardProps> = ({ user, token, onLogout }) => {
   const [repositories, setRepositories] = useState<Repository[]>([]);
   const [deployments, setDeployments] = useState<(Deployment & { status: DeploymentStatus, duration: string })[]>([]);
   const [loadingRepos, setLoadingRepos] = useState(true);
-  const [loadingDeployments, setLoadingDeployments] = useState(true);
-  const [selectedRepo, setSelectedRepo] = useState<Repository | null>(null);
-  const [viewingLogs, setViewingLogs] = useState<Deployment | null>(null);
-  const [dataError, setDataError] = useState<string | null>(null);
+  const [loadingDeployments, setLoadingDeployments] = useState(false);
   
-  const fetchAllData = useCallback(async () => {
+  const [configRepo, setConfigRepo] = useState<Repository | null>(null); // Repo for pipeline configurator modal
+  const [selectedRepo, setSelectedRepo] = useState<Repository | null>(null); // Repo for viewing deployments
+  const [viewingLogs, setViewingLogs] = useState<Deployment | null>(null);
+  
+  const [repoError, setRepoError] = useState<string | null>(null);
+  const [deploymentError, setDeploymentError] = useState<string | null>(null);
+  
+  const fetchRepos = useCallback(async () => {
     setLoadingRepos(true);
-    setLoadingDeployments(true);
-    setDataError(null);
-
+    setRepoError(null);
     try {
         const fetchedRepos = await getRepos(token);
-        // Filter for repos with push access to prevent API errors on read-only repos.
         const writableRepos = fetchedRepos.filter(repo => repo.permissions && repo.permissions.push);
 
         const reposWithWorkflowStatus = await Promise.all(
@@ -130,55 +148,72 @@ const Dashboard: React.FC<DashboardProps> = ({ user, token, onLogout }) => {
             })
         );
         setRepositories(reposWithWorkflowStatus);
-        
-        const allDeployments: (Deployment & { status: DeploymentStatus, duration: string })[] = [];
-        // Fetch deployments only for a few repos to avoid hitting rate limits
-        const reposToCheck = reposWithWorkflowStatus.slice(0, 5);
-        for (const repo of reposToCheck) {
-            const repoDeployments = await getDeploymentsForRepo(token, repo.owner.login, repo.name);
-            allDeployments.push(...repoDeployments);
-        }
-
-        allDeployments.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-        setDeployments(allDeployments.slice(0, 10)); // Show latest 10
     } catch (error) {
-        console.error("Failed to fetch data", error);
-        const errorMessage = error instanceof Error ? error.message : "An unknown error occurred while fetching data.";
-        setDataError(errorMessage);
+        console.error("Failed to fetch repositories", error);
+        const errorMessage = error instanceof Error ? error.message : "An unknown error occurred while fetching repositories.";
+        setRepoError(errorMessage);
     } finally {
         setLoadingRepos(false);
-        setLoadingDeployments(false);
     }
   }, [token]);
 
   useEffect(() => {
-    fetchAllData();
-  }, [fetchAllData]);
+    fetchRepos();
+  }, [fetchRepos]);
+
+  const handleRepoSelect = useCallback(async (repo: Repository) => {
+    if (selectedRepo?.id === repo.id) return; // Don't refetch if already selected
+
+    setSelectedRepo(repo);
+    setLoadingDeployments(true);
+    setDeployments([]);
+    setDeploymentError(null);
+    try {
+        const repoDeployments = await getDeploymentsForRepo(token, repo.owner.login, repo.name);
+        repoDeployments.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+        setDeployments(repoDeployments);
+    } catch (error) {
+        console.error(`Failed to fetch deployments for ${repo.name}`, error);
+        const errorMessage = error instanceof Error ? error.message : "An unknown error occurred.";
+        setDeploymentError(errorMessage);
+    } finally {
+        setLoadingDeployments(false);
+    }
+  }, [token, selectedRepo]);
   
   const handlePipelineConfigured = useCallback((repoId: number) => {
     setRepositories(prev => prev.map(r => r.id === repoId ? { ...r, has_workflows: true } : r));
-    // Optionally refetch deployments
-  }, []);
+    const newlyConfiguredRepo = repositories.find(r => r.id === repoId);
+    if (newlyConfiguredRepo) {
+        handleRepoSelect(newlyConfiguredRepo);
+    }
+  }, [repositories, handleRepoSelect]);
 
   return (
     <div className="min-h-screen bg-gray-100 dark:bg-gray-900">
       <Header user={user} onLogout={onLogout} />
       <main className="p-4 md:p-8">
-        {dataError && (
-          <div className="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 rounded-lg mb-6" role="alert">
-            <p className="font-bold">Failed to load data</p>
-            <p>{dataError}</p>
-          </div>
-        )}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           
           <div className="space-y-6">
             <h2 className="text-3xl font-bold text-gray-800 dark:text-white">Your Repositories</h2>
-            <div className="space-y-4">
+            {repoError && (
+              <div className="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 rounded-lg" role="alert">
+                <p className="font-bold">Failed to load repositories</p>
+                <p>{repoError}</p>
+              </div>
+            )}
+            <div className="space-y-4 max-h-[70vh] overflow-y-auto pr-2">
               {loadingRepos ? <p className="text-gray-500 dark:text-gray-400">Loading repositories...</p> : 
                repositories.length > 0 ? (
                 repositories.map(repo => (
-                  <RepositoryListItem key={repo.id} repo={repo} onConfigure={setSelectedRepo} />
+                  <RepositoryListItem 
+                    key={repo.id} 
+                    repo={repo} 
+                    onConfigure={setConfigRepo}
+                    onSelect={handleRepoSelect}
+                    isSelected={selectedRepo?.id === repo.id}
+                  />
                 ))
                ) : (
                 <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-sm text-center">
@@ -192,7 +227,9 @@ const Dashboard: React.FC<DashboardProps> = ({ user, token, onLogout }) => {
           </div>
           
           <div className="space-y-6">
-            <h2 className="text-3xl font-bold text-gray-800 dark:text-white">Recent Deployments</h2>
+            <h2 className="text-3xl font-bold text-gray-800 dark:text-white">
+                {selectedRepo ? `Deployments for ${selectedRepo.name}` : 'Repository Details'}
+            </h2>
             <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm overflow-hidden">
                 <div className="grid grid-cols-12 items-center gap-4 py-3 px-4 text-xs font-bold text-gray-500 dark:text-gray-400 uppercase border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/50">
                     <div className="col-span-1"></div>
@@ -201,21 +238,37 @@ const Dashboard: React.FC<DashboardProps> = ({ user, token, onLogout }) => {
                     <div className="col-span-2">Duration</div>
                     <div className="col-span-3 text-right">Details</div>
                 </div>
-                {loadingDeployments ? <p className="text-gray-500 dark:text-gray-400 p-4">Loading deployments...</p> :
-                 deployments.map(dep => (
-                    <DeploymentListItem key={dep.id} deployment={dep} onLogView={setViewingLogs} />
-                ))}
+                <div className="min-h-[200px]">
+                    {loadingDeployments && <p className="text-gray-500 dark:text-gray-400 p-4 text-center">Loading deployments...</p>}
+                    {deploymentError && <p className="text-red-500 p-4 text-center">Failed to load deployments: {deploymentError}</p>}
+                    
+                    {!loadingDeployments && !selectedRepo && (
+                         <div className="flex items-center justify-center h-full p-8">
+                            <p className="text-gray-500 dark:text-gray-400 text-center">Select a repository from the left to view its deployments.</p>
+                        </div>
+                    )}
+
+                    {!loadingDeployments && selectedRepo && deployments.length === 0 && !deploymentError && (
+                         <div className="flex items-center justify-center h-full p-8">
+                            <p className="text-gray-500 dark:text-gray-400 text-center">No deployments found for this repository.</p>
+                        </div>
+                    )}
+                    
+                    {deployments.map(dep => (
+                        <DeploymentListItem key={dep.id} deployment={dep} onLogView={setViewingLogs} />
+                    ))}
+                </div>
             </div>
           </div>
           
         </div>
       </main>
       
-      {selectedRepo && (
+      {configRepo && (
         <PipelineConfigurator 
-            repo={selectedRepo}
+            repo={configRepo}
             token={token}
-            onClose={() => setSelectedRepo(null)} 
+            onClose={() => setConfigRepo(null)} 
             onPipelineConfigured={handlePipelineConfigured}
         />
       )}

@@ -27,8 +27,21 @@ export const generateWorkflow = async (
     });
 
     if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(errorData.error || 'Failed to generate workflow from the backend.');
+      // Robust error handling: try to parse as JSON, fall back to text.
+      let errorMessage = 'An unknown error occurred from the backend.';
+      try {
+        const contentType = response.headers.get('content-type');
+        if (contentType && contentType.includes('application/json')) {
+          const errorData = await response.json();
+          errorMessage = errorData.error || JSON.stringify(errorData);
+        } else {
+          errorMessage = await response.text();
+        }
+      } catch (e) {
+        // Fallback for cases where content-type is wrong or body is empty.
+        errorMessage = await response.text().catch(() => 'Could not retrieve error message from server.');
+      }
+      throw new Error(errorMessage);
     }
 
     const data = await response.json();

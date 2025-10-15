@@ -1,9 +1,11 @@
 
-// Use a namespace import for express to avoid type conflicts with global Request/Response objects.
-import express from 'express';
+
+// Use specific type imports for express to avoid type conflicts with global Request/Response objects.
+// FIX: Alias Request and Response to avoid conflicts with global types. This ensures the correct express types are used for the handler.
+import type { Request as ExpressRequest, Response as ExpressResponse } from 'express';
 import { generateWorkflowLogic } from './_lib/workflow-generator';
 
-export default async function handler(req: express.Request, res: express.Response) {
+export default async function handler(req: ExpressRequest, res: ExpressResponse) {
   // Ensure the request method is POST
   if (req.method !== 'POST') {
     res.setHeader('Allow', ['POST']);
