@@ -17,14 +17,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         await libsodium.ready;
 
         // Convert the secret and key to Uint8Array
-        const secretBytes = libsodium.utils.decode_utf8(valueToEncrypt);
-        const publicKeyBytes = libsodium.utils.decode_base64(publicKey);
+        // FIX: Use type assertion to bypass incorrect type definitions for libsodium.utils
+        const secretBytes = (libsodium as any).utils.decode_utf8(valueToEncrypt);
+        const publicKeyBytes = (libsodium as any).utils.decode_base64(publicKey);
 
         // Encrypt the secret using libsodium
         const encryptedBytes = libsodium.crypto_box_seal(secretBytes, publicKeyBytes);
 
         // Convert the encrypted Uint8Array to a base64 string
-        const encryptedValue = libsodium.utils.encode_base64(encryptedBytes);
+        const encryptedValue = (libsodium as any).utils.encode_base64(encryptedBytes);
 
         return res.status(200).json({ encryptedValue });
     } catch (error) {
