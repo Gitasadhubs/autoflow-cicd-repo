@@ -12,7 +12,7 @@ interface BuddyBotProps {
 }
 
 const Code: React.FC<{ children: React.ReactNode }> = ({ children }) => (
-    <code className="bg-gray-800 text-brand-secondary font-mono text-sm py-0.5 px-1.5 rounded-md">{children}</code>
+    <code className="bg-gray-200 dark:bg-gray-800 text-brand-secondary font-mono text-sm py-0.5 px-1.5 rounded-md">{children}</code>
 );
 
 const MessageContent: React.FC<{ content: string }> = ({ content }) => {
@@ -111,19 +111,19 @@ const BuddyBot: React.FC<BuddyBotProps> = ({ onClose }) => {
 
     return (
         <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center p-4 z-50">
-            <div className="bg-brand-surface rounded-xl shadow-2xl w-full max-w-2xl h-[80vh] flex flex-col transform transition-all animate-scale-up border border-gray-700">
-                <div className="p-4 border-b border-gray-700 flex justify-between items-center flex-shrink-0">
+            <div className="bg-light-surface dark:bg-brand-surface rounded-xl shadow-2xl w-full max-w-2xl h-[80vh] flex flex-col transform transition-all animate-scale-up border border-gray-200 dark:border-gray-700">
+                <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center flex-shrink-0">
                     <div className="flex items-center space-x-3">
                          <LogoIcon className="h-7 w-7 text-brand-primary" />
-                         <h2 className="text-xl font-bold text-gray-100">Chat with Buddy Bot</h2>
+                         <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100">Chat with Buddy Bot</h2>
                     </div>
-                    <button onClick={onClose} className="text-gray-400 hover:text-white text-3xl leading-none">&times;</button>
+                    <button onClick={onClose} className="text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white text-3xl leading-none">&times;</button>
                 </div>
-                <div ref={chatContainerRef} className="flex-grow p-6 space-y-6 overflow-y-auto text-gray-300">
+                <div ref={chatContainerRef} className="flex-grow p-6 space-y-6 overflow-y-auto text-gray-700 dark:text-gray-300">
                     {messages.map((msg, index) => (
                         <div key={index} className={`flex items-start gap-3 ${msg.role === 'user' ? 'justify-end' : ''}`}>
                             {msg.role === 'assistant' && <div className="w-8 h-8 rounded-full bg-brand-primary/20 flex items-center justify-center flex-shrink-0 mt-1"><LogoIcon className="w-5 h-5 text-brand-primary" /></div>}
-                            <div className={`max-w-md p-3 rounded-lg ${msg.role === 'user' ? 'bg-brand-primary text-white' : 'bg-gray-700 text-gray-200'}`}>
+                            <div className={`max-w-md p-3 rounded-lg ${msg.role === 'user' ? 'bg-brand-primary text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200'}`}>
                                 <MessageContent content={msg.content} />
                             </div>
                         </div>
@@ -131,7 +131,7 @@ const BuddyBot: React.FC<BuddyBotProps> = ({ onClose }) => {
                     {isLoading && messages[messages.length - 1].role === 'assistant' && messages[messages.length - 1].content === '' && (
                          <div className="flex items-start gap-3">
                             <div className="w-8 h-8 rounded-full bg-brand-primary/20 flex items-center justify-center flex-shrink-0 mt-1"><LogoIcon className="w-5 h-5 text-brand-primary" /></div>
-                            <div className="max-w-md p-3 rounded-lg bg-gray-700 text-gray-200">
+                            <div className="max-w-md p-3 rounded-lg bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200">
                                 <div className="flex items-center space-x-1">
                                     <span className="h-2 w-2 bg-brand-secondary rounded-full animate-pulse [animation-delay:-0.3s]"></span>
                                     <span className="h-2 w-2 bg-brand-secondary rounded-full animate-pulse [animation-delay:-0.15s]"></span>
@@ -142,32 +142,32 @@ const BuddyBot: React.FC<BuddyBotProps> = ({ onClose }) => {
                     )}
                 </div>
                 {messages.length <= 1 && (
-                    <div className="p-6 pt-0 border-t border-gray-700 flex-shrink-0">
-                        <p className="text-sm text-gray-400 mb-3">Or try one of these:</p>
+                    <div className="p-6 pt-0 border-t border-gray-200 dark:border-gray-700 flex-shrink-0">
+                        <p className="text-sm text-gray-500 dark:text-gray-400 mb-3">Or try one of these:</p>
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
                             {suggestedPrompts.map(prompt => (
-                                <button key={prompt} onClick={() => handleSendMessage(undefined, prompt)} className="text-left text-sm p-2 bg-gray-700 hover:bg-gray-600 rounded-lg transition">
+                                <button key={prompt} onClick={() => handleSendMessage(undefined, prompt)} className="text-left text-sm p-2 text-gray-800 dark:text-gray-200 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg transition">
                                     {prompt}
                                 </button>
                             ))}
                         </div>
                     </div>
                 )}
-                <div className="p-4 border-t border-gray-700 flex-shrink-0">
+                <div className="p-4 border-t border-gray-200 dark:border-gray-700 flex-shrink-0">
                     <form onSubmit={handleSendMessage} className="flex items-center space-x-2">
                         <input
                             type="text"
                             value={input}
                             onChange={(e) => setInput(e.target.value)}
                             placeholder="Ask about AutoFlow..."
-                            className="w-full bg-gray-900 border border-gray-600 text-gray-200 text-sm rounded-lg focus:ring-brand-primary focus:border-brand-primary block p-2.5 placeholder-gray-400"
+                            className="w-full bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-200 text-sm rounded-lg focus:ring-brand-primary focus:border-brand-primary block p-2.5 placeholder-gray-500 dark:placeholder-gray-400"
                             disabled={isLoading}
                         />
-                        <button type="submit" disabled={isLoading || !input} className="py-2.5 px-4 bg-brand-primary text-white rounded-lg hover:bg-brand-dark transition disabled:bg-gray-500 disabled:cursor-not-allowed font-semibold">
+                        <button type="submit" disabled={isLoading || !input} className="py-2.5 px-4 bg-brand-primary text-white rounded-lg hover:bg-brand-dark transition disabled:bg-gray-400 dark:disabled:bg-gray-500 disabled:cursor-not-allowed font-semibold">
                             Send
                         </button>
                     </form>
-                    {error && <p className="text-red-400 text-xs mt-2 text-center">{error}</p>}
+                    {error && <p className="text-red-500 text-xs mt-2 text-center">{error}</p>}
                 </div>
             </div>
         </div>

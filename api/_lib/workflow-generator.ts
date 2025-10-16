@@ -26,16 +26,29 @@ export const generateWorkflowLogic = async ({
         ? "The workflow MUST trigger on a push to the `main` branch. Example: `on: push: branches: [ main ]`"
         : "The workflow MUST trigger on a push to a `staging` branch. Example: `on: push: branches: [ staging ]`";
 
+    const railwayInstruction = deploymentTarget === DeploymentTarget.Railway
+    ? `
+    INSTRUCTIONS FOR RAILWAY DEPLOYMENT:
+    - The deployment MUST be done using the official Railway CLI.
+    - The workflow must include a step to install the Railway CLI (e.g., 'npm install -g @railway/cli').
+    - The primary deployment command is 'railway up'.
+    - Authentication with Railway requires a 'RAILWAY_TOKEN', which MUST be defined as a sensitive secret.
+    - The workflow may also benefit from optional variables like 'RAILWAY_PROJECT_ID' or 'RAILWAY_SERVICE_ID' for more complex setups, but these are not always required.
+    `
+    : '';
+
     const prompt = `
     Generate a complete and functional GitHub Actions workflow YAML file to build and deploy a "${techStack}" application to "${deploymentTarget}".
     This workflow is for the "${deploymentEnvironment}" environment in the repository "${repoName}".
+    ${railwayInstruction}
 
     CRITICAL REQUIREMENTS FOR THE YAML:
     1. It MUST include a descriptive 'name' for the workflow, like "Deploy ${techStack} to ${deploymentTarget} (${deploymentEnvironment})".
     2. ${triggerInstruction}
     3. The jobs should run on 'ubuntu-latest'.
-    4. Use the latest stable versions of official GitHub Actions (e.g., actions/checkout@v4).
-    5. For projects with dependencies (like Node.js, React), include a step to cache dependencies to speed up subsequent builds.
+    4. YAML indentation MUST be correct (using 2 spaces). Incorrect indentation is a common error and will break the workflow.
+    5. Use the latest stable versions of official GitHub Actions (e.g., actions/checkout@v4).
+    6. For projects with dependencies (like Node.js, React), include a step to cache dependencies to speed up subsequent builds.
 
     Also, identify any configuration values that this workflow might need. Separate them into two lists:
     1. Non-sensitive values that can be exposed as GitHub Actions Variables. For example: Node.js version, build directory, package manager.

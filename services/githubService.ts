@@ -53,9 +53,8 @@ export const hasWorkflows = async (token: string, owner: string, repo: string): 
         if (error instanceof Error && error.message.includes('404')) {
             return false;
         }
-        // Re-throw other errors
-        console.error(`Error checking for workflows in ${owner}/${repo}:`, error);
-        return false;
+        // Re-throw other errors so the caller can handle them.
+        throw error;
     }
 }
 
@@ -72,7 +71,7 @@ export const getLatestWorkflowRun = async (
     token: string,
     owner: string,
     repo: string
-): Promise<{ status: WorkflowRunStatus; url: string } | null> => {
+): Promise<{ status: WorkflowRunStatus; url: string; runId: number } | null> => {
     try {
         const response = await githubApiRequest<{ workflow_runs: GitHubWorkflowRun[] }>(
             `/repos/${owner}/${repo}/actions/runs?per_page=1`,
@@ -109,6 +108,7 @@ export const getLatestWorkflowRun = async (
         return {
             status,
             url: latestRun.html_url,
+            runId: latestRun.id,
         };
     } catch (error) {
         if (!(error instanceof Error && error.message.includes('404'))) {
@@ -200,17 +200,36 @@ export const setRepositoryVariable = async (
     variableName: string,
     value: string
 ): Promise<void> => {
-    // Note: Creating a variable that already exists will update its value.
-    await githubApiRequest(`/repos/${owner}/${repo}/actions/variables`, token, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-            name: variableName,
-            value: value,
-        }),
-    });
+    try {
+        // First, try to update the variable. This handles re-configurations.
+        await githubApiRequest(`/repos/${owner}/${repo}/actions/variables/${variableName}`, token, {
+            method: 'PATCH',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                name: variableName,
+                value: value,
+            }),
+        });
+    } catch (error) {
+        // If the update fails with a 404, it means the variable doesn't exist, so create it.
+        if (error instanceof Error && error.message.includes('404')) {
+            await githubApiRequest(`/repos/${owner}/${repo}/actions/variables`, token, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    name: variableName,
+                    value: value,
+                }),
+            });
+        } else {
+            // Re-throw any other unexpected errors.
+            throw error;
+        }
+    }
 };
 
 // Function to get a repository's public key for encrypting secrets
@@ -236,8 +255,19 @@ export const setRepositorySecret = async (
     }
 
     const { key_id, key: publicKey } = await getRepositoryPublicKey(token, owner, repo);
-
-    await libsodium.ready;
+    
+    try {
+        // Add a timeout to prevent the app from hanging if the libsodium CDN fails to load
+        await Promise.race([
+            libsodium.ready,
+            new Promise((_, reject) => 
+                setTimeout(() => reject(new Error('Encryption library (libsodium) failed to load within 5 seconds.')), 5000)
+            )
+        ]);
+    } catch (error) {
+        console.error(error);
+        throw new Error("Failed to initialize the encryption module. Please check your network connection and ad-blockers, then try again.");
+    }
 
     // Convert the secret and key to Uint8Array
     const secretBytes = libsodium.utils.decode_utf8(value);
@@ -259,4 +289,33 @@ export const setRepositorySecret = async (
             key_id: key_id,
         }),
     });
+};
+
+
+// Function to re-run an entire workflow
+export const rerunWorkflow = (
+    token: string,
+    owner: string,
+    repo: string,
+    runId: number
+): Promise<void> => {
+    return githubApiRequest(
+        `/repos/${owner}/${repo}/actions/runs/${runId}/rerun`,
+        token,
+        { method: 'POST' }
+    );
+};
+
+// Function to re-run only the failed jobs in a workflow
+export const rerunFailedJobs = (
+    token: string,
+    owner: string,
+    repo: string,
+    runId: number
+): Promise<void> => {
+    return githubApiRequest(
+        `/repos/${owner}/${repo}/actions/runs/${runId}/rerun-failed-jobs`,
+        token,
+        { method: 'POST' }
+    );
 };

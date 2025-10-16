@@ -43,6 +43,7 @@ export interface Repository {
   };
   latestRunStatus?: WorkflowRunStatus;
   latestRunUrl?: string;
+  latestRunId?: number;
 }
 
 export enum DeploymentStatus {
@@ -92,6 +93,7 @@ export enum DeploymentTarget {
   Vercel = 'Vercel',
   Firebase = 'Firebase Hosting',
   GitHubPages = 'GitHub Pages',
+  Railway = 'Railway',
 }
 
 export enum DeploymentEnvironment {
