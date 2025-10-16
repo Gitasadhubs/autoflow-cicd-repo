@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { Repository, TechStack, DeploymentTarget, DeploymentEnvironment, RequiredVariable, RequiredSecret } from '../types';
 import { generateWorkflow } from '../services/geminiService';
 import { createWorkflowFile, setRepositoryVariable, setRepositorySecret } from '../services/githubService';
@@ -92,6 +92,9 @@ const PipelineConfigurator: React.FC<PipelineConfiguratorProps> = ({ repo, token
   const [commitError, setCommitError] = useState<string | null>(null);
   const [generationError, setGenerationError] = useState<string | null>(null);
   const [commitProgress, setCommitProgress] = useState<CommitProgress>(initialCommitProgress);
+  
+  const [loadingMessage, setLoadingMessage] = useState<string>('');
+  const loadingIntervalRef = useRef<number | null>(null);
 
 
   useEffect(() => {
@@ -131,6 +134,21 @@ const PipelineConfigurator: React.FC<PipelineConfiguratorProps> = ({ repo, token
     setSecretValues({});
     setVisibleSecrets({});
     setGenerationError(null);
+    
+    const loadingMessages = [
+        "Contacting AI DevOps expert...",
+        "Analyzing project requirements...",
+        "Crafting the perfect YAML script...",
+        "Adding dependency caching for speed...",
+        "Defining required variables and secrets...",
+        "Finalizing the deployment strategy...",
+    ];
+    let messageIndex = 0;
+    setLoadingMessage(loadingMessages[messageIndex]);
+    loadingIntervalRef.current = window.setInterval(() => {
+        messageIndex = (messageIndex + 1) % loadingMessages.length;
+        setLoadingMessage(loadingMessages[messageIndex]);
+    }, 2500);
 
     try {
         const { yaml, variables, secrets } = await generateWorkflow(techStack, deploymentTarget, deploymentEnvironment, repo.name);
@@ -143,6 +161,10 @@ const PipelineConfigurator: React.FC<PipelineConfiguratorProps> = ({ repo, token
         console.error("Workflow generation failed:", error);
     } finally {
         setIsLoading(false);
+        if (loadingIntervalRef.current) {
+            clearInterval(loadingIntervalRef.current);
+            loadingIntervalRef.current = null;
+        }
     }
   }, [techStack, deploymentTarget, deploymentEnvironment, repo.name]);
   
@@ -295,7 +317,7 @@ const PipelineConfigurator: React.FC<PipelineConfiguratorProps> = ({ repo, token
             className="w-full flex items-center justify-center bg-brand-primary hover:bg-brand-dark text-white font-bold py-2.5 px-4 rounded-lg transition duration-300 disabled:bg-gray-400 dark:disabled:bg-gray-600 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-light-surface dark:focus:ring-offset-brand-surface focus:ring-brand-secondary"
           >
             {isLoading ? (
-              <><LogoIcon className="h-5 w-5 mr-2 animate-rocket-float" />Generating...</>
+              <><LogoIcon className="h-5 w-5 mr-2 animate-rocket-float" />{loadingMessage}</>
             ) : (
               <><CodeBracketIcon className="h-5 w-5 mr-2" />Generate Workflow File</>
             )}
