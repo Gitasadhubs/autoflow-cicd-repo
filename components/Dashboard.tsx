@@ -6,7 +6,7 @@ import BuddyBot from './DocsChat';
 import Documentation from './Documentation';
 import { 
     CheckCircleIcon, XCircleIcon, ArrowPathIcon, CodeBracketIcon, LockClosedIcon, 
-    StopCircleIcon, LogoIcon, QuestionMarkCircleIcon, ChatBubbleOvalLeftIcon, SunIcon, MoonIcon 
+    StopCircleIcon, LogoIcon, QuestionMarkCircleIcon, ChatBubbleOvalLeftIcon, SunIcon, MoonIcon, MagnifyingGlassIcon
 } from './icons';
 import { getRepos, getDeploymentsForRepo, hasWorkflows, getLatestWorkflowRun, rerunWorkflow, rerunFailedJobs } from '../services/githubService';
 
@@ -237,6 +237,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, token, onLogout, theme, onT
   const [repoError, setRepoError] = useState<string | null>(null);
   const [deploymentError, setDeploymentError] = useState<string | null>(null);
   const [rerunningRepos, setRerunningRepos] = useState<Set<number>>(new Set());
+  const [searchQuery, setSearchQuery] = useState('');
   
   const fetchRepos = useCallback(async (showLoading = true) => {
     if (showLoading) {
@@ -333,6 +334,10 @@ const Dashboard: React.FC<DashboardProps> = ({ user, token, onLogout, theme, onT
     }
   }, [repositories, handleRepoSelect]);
 
+  const filteredRepositories = repositories.filter(repo =>
+    repo.full_name.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
   return (
     <div className="min-h-screen text-gray-800 dark:text-gray-200">
       <Header 
@@ -348,10 +353,37 @@ const Dashboard: React.FC<DashboardProps> = ({ user, token, onLogout, theme, onT
           
           <div className="space-y-6">
             <h2 className="text-3xl font-bold text-gray-900 dark:text-gray-100">Your Repositories</h2>
+            
+            <div className="relative">
+              <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
+                <MagnifyingGlassIcon className="h-5 w-5 text-gray-400" aria-hidden="true" />
+              </div>
+              <input
+                type="text"
+                name="search-repo"
+                id="search-repo"
+                className="block w-full rounded-md border-0 py-2.5 pl-10 bg-light-surface dark:bg-brand-surface text-gray-900 dark:text-gray-100 ring-1 ring-inset ring-gray-300 dark:ring-gray-600 placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:ring-2 focus:ring-inset focus:ring-brand-primary sm:text-sm sm:leading-6"
+                placeholder="Search repositories by name..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
+            </div>
+
             {repoError && (
               <div className="bg-red-500/10 border-l-4 border-red-500 text-red-700 dark:text-red-300 p-4 rounded-lg" role="alert">
-                <p className="font-bold">Failed to load repositories</p>
-                <p>{repoError}</p>
+                <div className="flex justify-between items-center">
+                    <div>
+                        <p className="font-bold">Failed to load repositories</p>
+                        <p>{repoError}</p>
+                    </div>
+                    <button
+                        onClick={() => fetchRepos()}
+                        className="bg-red-100 dark:bg-red-900/50 text-red-700 dark:text-red-300 hover:bg-red-200 dark:hover:bg-red-900/80 font-semibold py-1 px-3 rounded-md transition-colors flex items-center text-sm"
+                    >
+                        <ArrowPathIcon className="w-4 h-4 mr-1.5" />
+                        Retry
+                    </button>
+                </div>
               </div>
             )}
             <div className="space-y-4 max-h-[70vh] overflow-y-auto pr-2">
@@ -361,8 +393,8 @@ const Dashboard: React.FC<DashboardProps> = ({ user, token, onLogout, theme, onT
                     <p className="mt-4 text-gray-600 dark:text-gray-400">Fetching repositories...</p>
                 </div>
                ) : 
-               repositories.length > 0 ? (
-                repositories.map(repo => (
+               filteredRepositories.length > 0 ? (
+                filteredRepositories.map(repo => (
                   <RepositoryListItem 
                     key={repo.id} 
                     repo={repo} 
@@ -373,6 +405,13 @@ const Dashboard: React.FC<DashboardProps> = ({ user, token, onLogout, theme, onT
                     isRerunning={rerunningRepos.has(repo.id)}
                   />
                 ))
+               ) : searchQuery ? (
+                <div className="bg-light-surface dark:bg-brand-surface p-6 rounded-lg shadow-sm text-center border border-gray-200 dark:border-gray-700">
+                    <p className="text-gray-800 dark:text-gray-300 font-semibold">No Repositories Found</p>
+                    <p className="text-sm text-gray-600 dark:text-gray-400 mt-2">
+                        Your search for "{searchQuery}" did not match any repositories.
+                    </p>
+                </div>
                ) : (
                 <div className="bg-light-surface dark:bg-brand-surface p-6 rounded-lg shadow-sm text-center border border-gray-200 dark:border-gray-700">
                     <p className="text-gray-800 dark:text-gray-300 font-semibold">No writable repositories found.</p>

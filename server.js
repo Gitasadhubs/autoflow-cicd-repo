@@ -33,36 +33,70 @@ const generateWorkflowLogic = async ({
 
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
+    // In server.js, enums are just strings like 'Vercel', 'Production'
+    const targetSpecificInstructions = {
+        'Vercel': `
+        INSTRUCTIONS FOR VERCEL DEPLOYMENT:
+        - The deployment MUST be done using the official Vercel CLI.
+        - Authentication requires a 'VERCEL_TOKEN', which MUST be a sensitive secret.
+        - The deployment also requires 'VERCEL_PROJECT_ID' and 'VERCEL_ORG_ID', which are best handled as secrets because they are sensitive identifiers.
+        - The workflow MUST specify the correct production command for Vercel. The full command should be \`vercel pull --yes --environment=${deploymentEnvironment.toLowerCase()} --token=\${{ secrets.VERCEL_TOKEN }} && vercel build --token=\${{ secrets.VERCEL_TOKEN }} && vercel deploy --prebuilt --token=\${{ secrets.VERCEL_TOKEN }}${deploymentEnvironment === 'Production' ? ' --prod' : ''}\`
+        - REQUIRED SECRETS: VERCEL_TOKEN, VERCEL_PROJECT_ID, VERCEL_ORG_ID.
+        `,
+        'Firebase Hosting': `
+        INSTRUCTIONS FOR FIREBASE HOSTING DEPLOYMENT:
+        - The deployment MUST be done using the 'firebase-tools' CLI.
+        - The workflow must include a step to install 'firebase-tools' (e.g., 'npm install -g firebase-tools').
+        - Authentication with Firebase requires a 'FIREBASE_TOKEN', which MUST be defined as a sensitive secret.
+        - The deployment command is 'firebase deploy --only hosting --token "\${{ secrets.FIREBASE_TOKEN }}"'.
+        - The workflow might need a 'FIREBASE_PROJECT_ID' variable. If the '.firebaserc' file is not committed to the repository, this variable is required. Assume it is required.
+        - REQUIRED SECRETS: FIREBASE_TOKEN.
+        - REQUIRED VARIABLES: FIREBASE_PROJECT_ID.
+        `,
+        'GitHub Pages': `
+        INSTRUCTIONS FOR GITHUB PAGES DEPLOYMENT:
+        - The deployment MUST use the official 'actions/deploy-pages@v4' and 'actions/upload-pages-artifact@v3' actions.
+        - This is a two-job process: one 'build' job to create the artifact, and one 'deploy' job that depends on the 'build' job.
+        - The 'deploy' job requires specific repository permissions ('pages: write', 'id-token: write'). These permissions MUST be included at the top level of the workflow YAML.
+        - This deployment method typically does NOT require any secrets, as it uses the automatically provided GITHUB_TOKEN. Explicitly state that no secrets are required unless the build process itself needs them for other reasons.
+        - Ensure the 'build' job correctly identifies the build output path (e.g., 'dist', 'build') and uploads it as an artifact named 'github-pages'.
+        `,
+        'Railway': `
+        INSTRUCTIONS FOR RAILWAY DEPLOYMENT:
+        - The deployment MUST be done using the official Railway CLI.
+        - The workflow must include a step to install the Railway CLI (e.g., 'npm install -g @railway/cli').
+        - The primary deployment command is 'railway up'.
+        - Authentication with Railway requires a 'RAILWAY_TOKEN', which MUST be defined as a sensitive secret.
+        - The workflow may benefit from optional variables like 'RAILWAY_PROJECT_ID' or 'RAILWAY_SERVICE_ID' for more complex setups. Define 'RAILWAY_PROJECT_ID' as a required variable.
+        - REQUIRED SECRETS: RAILWAY_TOKEN.
+        - REQUIRED VARIABLES: RAILWAY_PROJECT_ID.
+        `,
+    };
+
+    const detailedInstruction = targetSpecificInstructions[deploymentTarget] || '';
+
     // Dynamically create the trigger instruction based on the environment
     const triggerInstruction = deploymentEnvironment === 'Production'
         ? "The workflow MUST trigger on a push to the `main` branch. Example: `on: push: branches: [ main ]`"
         : "The workflow MUST trigger on a push to a `staging` branch. Example: `on: push: branches: [ staging ]`";
 
-    const railwayInstruction = deploymentTarget === 'Railway'
-    ? `
-    INSTRUCTIONS FOR RAILWAY DEPLOYMENT:
-    - The deployment MUST be done using the official Railway CLI.
-    - The workflow must include a step to install the Railway CLI (e.g., 'npm install -g @railway/cli').
-    - The primary deployment command is 'railway up'.
-    - Authentication with Railway requires a 'RAILWAY_TOKEN', which MUST be defined as a sensitive secret.
-    - The workflow may also benefit from optional variables like 'RAILWAY_PROJECT_ID' or 'RAILWAY_SERVICE_ID' for more complex setups, but these are not always required.
-    `
-    : '';
-
     const prompt = `
-    Generate a complete and functional GitHub Actions workflow YAML file to build and deploy a "${techStack}" application to "${deploymentTarget}".
+    Generate a complete, 100% accurate, and production-ready GitHub Actions workflow YAML file to build and deploy a "${techStack}" application to "${deploymentTarget}".
     This workflow is for the "${deploymentEnvironment}" environment in the repository "${repoName}".
-    ${railwayInstruction}
+
+    ${detailedInstruction}
 
     CRITICAL REQUIREMENTS FOR THE YAML:
     1. It MUST include a descriptive 'name' for the workflow, like "Deploy ${techStack} to ${deploymentTarget} (${deploymentEnvironment})".
     2. ${triggerInstruction}
-    3. The jobs should run on 'ubuntu-latest'.
-    4. YAML indentation MUST be correct (using 2 spaces). Incorrect indentation is a common error and will break the workflow.
-    5. Use the latest stable versions of official GitHub Actions (e.g., actions/checkout@v4).
-    6. For projects with dependencies (like Node.js, React), include a step to cache dependencies to speed up subsequent builds.
+    3. The jobs MUST run on 'ubuntu-latest'.
+    4. YAML indentation MUST be correct (using 2 spaces). This is a critical point of failure.
+    5. You MUST use the latest stable versions of official GitHub Actions (e.g., actions/checkout@v4, actions/setup-node@v4).
+    6. For projects with dependencies (like Node.js, React), include a step to cache dependencies to speed up subsequent builds. Use a reliable caching key (e.g., based on the lock file).
+    7. Ensure all necessary environment variables are set for each step, especially for deployment steps that require tokens or IDs.
+    8. If the workflow has build and deploy steps, ensure the deploy step correctly uses the artifacts from the build step.
 
-    Also, identify any configuration values that this workflow might need. Separate them into two lists:
+    Also, identify ALL configuration values that this workflow requires to function. Separate them into two lists:
     1. Non-sensitive values that can be exposed as GitHub Actions Variables. For example: Node.js version, build directory, package manager.
     2. Sensitive values that MUST be stored as encrypted GitHub Actions Secrets. For example: API tokens (like VERCEL_TOKEN, FIREBASE_TOKEN), private keys, or passwords.
 
