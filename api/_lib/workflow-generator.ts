@@ -1,4 +1,4 @@
-import { GoogleGenAI, Type } from '@google/genai';
+import { GoogleGenAI, Type, GenerateContentResponse } from '@google/genai';
 import { TechStack, DeploymentTarget, DeploymentEnvironment } from '../../types.ts';
 
 interface GenerationParams {
@@ -65,7 +65,7 @@ export const generateWorkflowLogic = async ({
 
     const systemInstruction = `You are an expert DevOps engineer specializing in GitHub Actions. Your sole purpose is to generate clean, correct, and complete YAML configuration files and associated non-sensitive variables and sensitive secrets. You ONLY respond with a single JSON object.`;
 
-    const geminiResponse = await ai.models.generateContent({
+    const generationPromise = ai.models.generateContent({
       model: "gemini-2.5-flash",
       contents: prompt,
       config: {
@@ -104,18 +104,37 @@ export const generateWorkflowLogic = async ({
       },
     });
 
+    const timeoutPromise = new Promise<GenerateContentResponse>((_, reject) =>
+        setTimeout(() => reject(new Error('AI workflow generation timed out after 30 seconds.')), 30000)
+    );
+
+    const geminiResponse = await Promise.race([generationPromise, timeoutPromise]);
+    
     let parsed;
     try {
-        const jsonString = geminiResponse.text.trim();
-        if (!jsonString) {
-            throw new Error("Gemini API returned an empty response.");
+        // The .text accessor is a convenience method. To be robust, especially against
+        // cases like safety blocks, we should check for the response content directly.
+        const responseText = geminiResponse.text;
+        
+        if (typeof responseText !== 'string' || !responseText.trim()) {
+            console.warn("Gemini API returned an empty or non-string response. This might be due to content filtering.");
+            // Log the full response for debugging purposes.
+            console.error("Full Gemini Response:", JSON.stringify(geminiResponse, null, 2));
+            throw new Error("The AI model returned an empty or invalid response. This can happen if the prompt is flagged by safety filters.");
         }
-        parsed = JSON.parse(jsonString);
+
+        parsed = JSON.parse(responseText);
+
     } catch (e) {
-        console.error("Failed to parse Gemini response as JSON.");
-        console.error("Raw Gemini Response Text:", geminiResponse.text);
-        throw new Error("The AI model returned a response that was not valid JSON. Please try again.");
+        // This catch block handles both errors from accessing .text and from JSON.parse.
+        console.error("Failed to process or parse Gemini response:", e);
+        // Safely log the raw response object that caused the error for debugging.
+        console.error("Raw Gemini Response object:", JSON.stringify(geminiResponse, null, 2));
+
+        // Propagate a user-friendly error.
+        throw new Error("The AI model's response could not be processed. It might have been malformed or incomplete.");
     }
+
 
     // Validate that the parsed object has the properties we expect.
     if (!parsed.workflow || !('requiredVariables' in parsed) || !('requiredSecrets' in parsed)) {
