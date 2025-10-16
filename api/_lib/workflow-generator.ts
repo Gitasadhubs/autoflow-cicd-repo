@@ -1,5 +1,5 @@
 import { GoogleGenAI, Type, GenerateContentResponse } from '@google/genai';
-import { TechStack, DeploymentTarget, DeploymentEnvironment } from '../../types.ts';
+import { TechStack, DeploymentTarget, DeploymentEnvironment } from '../../types';
 
 interface GenerationParams {
     techStack: TechStack;
