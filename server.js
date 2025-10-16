@@ -4,6 +4,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
 import { GoogleGenAI, Type, HarmCategory, HarmBlockThreshold } from '@google/genai';
+import libsodium from 'libsodium-wrappers';
 
 // Load environment variables from .env file
 dotenv.config();
@@ -261,6 +262,28 @@ Your tone should be encouraging and clear. Keep your answers concise and focused
 };
 
 // --- API Endpoints ---
+
+// Endpoint for encrypting secrets
+app.post('/api/encrypt', async (req, res) => {
+    const { publicKey, valueToEncrypt } = req.body;
+    if (!publicKey || !valueToEncrypt) {
+        return res.status(400).json({ error: 'Missing publicKey or valueToEncrypt in the request body.' });
+    }
+    try {
+        await libsodium.ready;
+
+        const secretBytes = libsodium.utils.decode_utf8(valueToEncrypt);
+        const publicKeyBytes = libsodium.utils.decode_base64(publicKey);
+        const encryptedBytes = libsodium.crypto_box_seal(secretBytes, publicKeyBytes);
+        const encryptedValue = libsodium.utils.encode_base64(encryptedBytes);
+
+        return res.status(200).json({ encryptedValue });
+    } catch (error) {
+        console.error("Encryption failed on local server:", error);
+        const errorMessage = error instanceof Error ? error.message : "An unknown encryption error occurred.";
+        return res.status(500).json({ error: `Server-side encryption failed: ${errorMessage}` });
+    }
+});
 
 // Endpoint for workflow generation
 app.post('/api/generate-workflow', async (req, res) => {

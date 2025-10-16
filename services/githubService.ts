@@ -1,9 +1,7 @@
 import { User, Repository, Deployment, DeploymentStatus, DeploymentStatusPayload, WorkflowRunStatus } from '../types';
+import { API_ENDPOINT_ENCRYPT_SECRET } from '../constants';
 
 const GITHUB_API_BASE = 'https://api.github.com';
-
-// libsodium is loaded globally from a script tag in index.html
-declare const libsodium: any;
 
 // Helper function to handle API requests
 async function githubApiRequest<T>(endpoint: string, token: string, options: RequestInit = {}): Promise<T> {
@@ -255,29 +253,25 @@ export const setRepositorySecret = async (
     }
 
     const { key_id, key: publicKey } = await getRepositoryPublicKey(token, owner, repo);
-    
-    try {
-        // Add a timeout to prevent the app from hanging if the libsodium CDN fails to load
-        await Promise.race([
-            libsodium.ready,
-            new Promise((_, reject) => 
-                setTimeout(() => reject(new Error('Encryption library (libsodium) failed to load within 5 seconds.')), 5000)
-            )
-        ]);
-    } catch (error) {
-        console.error(error);
-        throw new Error("Failed to initialize the encryption module. Please check your network connection and ad-blockers, then try again.");
+
+    // Encryption is now done on the server-side to avoid client-side crypto issues.
+    const response = await fetch(API_ENDPOINT_ENCRYPT_SECRET, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            publicKey: publicKey,
+            valueToEncrypt: value,
+        }),
+    });
+
+    if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: "An unknown error occurred during encryption." }));
+        throw new Error(`Failed to encrypt secret: ${errorData.error}`);
     }
 
-    // Convert the secret and key to Uint8Array
-    const secretBytes = libsodium.utils.decode_utf8(value);
-    const publicKeyBytes = libsodium.utils.decode_base64(publicKey);
-
-    // Encrypt the secret using libsodium
-    const encryptedBytes = libsodium.crypto_box_seal(secretBytes, publicKeyBytes);
-
-    // Convert the encrypted Uint8Array to a base64 string
-    const encryptedValue = libsodium.utils.encode_base64(encryptedBytes);
+    const { encryptedValue } = await response.json();
 
     await githubApiRequest(`/repos/${owner}/${repo}/actions/secrets/${secretName}`, token, {
         method: 'PUT',

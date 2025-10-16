@@ -10,3 +10,4 @@ const API_BASE_URL = '';
 
 export const API_ENDPOINT_GENERATE_WORKFLOW = `${API_BASE_URL}/api/generate-workflow`;
 export const API_ENDPOINT_BUDDY_BOT_CHAT = `${API_BASE_URL}/api/chat-with-docs`;
+export const API_ENDPOINT_ENCRYPT_SECRET = `${API_BASE_URL}/api/encrypt`;
