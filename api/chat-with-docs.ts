@@ -1,5 +1,5 @@
 import { GoogleGenAI } from '@google/genai';
-import { getSystemInstruction } from './_lib/docs-chat-config';
+import { getSystemInstruction } from './_lib/docs-chat-config.ts';
 
 // Configure the Vercel function to run on the Edge for streaming capabilities
 export const config = {

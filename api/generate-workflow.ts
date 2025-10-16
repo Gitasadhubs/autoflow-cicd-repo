@@ -3,7 +3,7 @@
 // The properties `.method`, `.body`, and methods like `.status()` are available and
 // correctly typed on `VercelRequest` and `VercelResponse`.
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { generateWorkflowLogic } from './_lib/workflow-generator';
+import { generateWorkflowLogic } from './_lib/workflow-generator.ts';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   // Ensure the request method is POST
