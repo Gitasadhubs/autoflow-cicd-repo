@@ -1,4 +1,4 @@
-import { GoogleGenAI, Type, GenerateContentResponse } from '@google/genai';
+import { GoogleGenAI, Type, GenerateContentResponse, HarmCategory, HarmBlockThreshold } from '@google/genai';
 import { TechStack, DeploymentTarget, DeploymentEnvironment } from '../../types';
 
 interface GenerationParams {
@@ -71,6 +71,24 @@ export const generateWorkflowLogic = async ({
       config: {
         systemInstruction,
         responseMimeType: "application/json",
+        safetySettings: [
+            {
+                category: HarmCategory.HARM_CATEGORY_HARASSMENT,
+                threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH,
+            },
+            {
+                category: HarmCategory.HARM_CATEGORY_HATE_SPEECH,
+                threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH,
+            },
+            {
+                category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,
+                threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH,
+            },
+            {
+                category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
+                threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH,
+            },
+        ],
         responseSchema: {
             type: Type.OBJECT,
             properties: {
@@ -110,15 +128,24 @@ export const generateWorkflowLogic = async ({
 
     const geminiResponse = await Promise.race([generationPromise, timeoutPromise]);
     
+    // Explicitly check for a valid response and reason before proceeding.
+    const finishReason = geminiResponse.candidates?.[0]?.finishReason;
+    if (finishReason && finishReason !== 'STOP' && finishReason !== 'MAX_TOKENS') {
+         let userMessage = `The AI model stopped generating for an unexpected reason: ${finishReason}.`;
+        if (finishReason === 'SAFETY') {
+            userMessage = "The request was blocked by the AI's safety filters. This can happen if the generated code or prompt contains sensitive keywords. Please try adjusting your configuration.";
+        }
+        console.error("Gemini generation finished with reason:", finishReason);
+        console.error("Full Gemini Response:", JSON.stringify(geminiResponse, null, 2));
+        throw new Error(userMessage);
+    }
+
     let parsed;
     try {
-        // The .text accessor is a convenience method. To be robust, especially against
-        // cases like safety blocks, we should check for the response content directly.
         const responseText = geminiResponse.text;
         
         if (typeof responseText !== 'string' || !responseText.trim()) {
             console.warn("Gemini API returned an empty or non-string response. This might be due to content filtering.");
-            // Log the full response for debugging purposes.
             console.error("Full Gemini Response:", JSON.stringify(geminiResponse, null, 2));
             throw new Error("The AI model returned an empty or invalid response. This can happen if the prompt is flagged by safety filters.");
         }
@@ -126,13 +153,13 @@ export const generateWorkflowLogic = async ({
         parsed = JSON.parse(responseText);
 
     } catch (e) {
-        // This catch block handles both errors from accessing .text and from JSON.parse.
+        // This catch block handles errors from accessing .text (e.g., due to safety blocks) and from JSON.parse.
         console.error("Failed to process or parse Gemini response:", e);
         // Safely log the raw response object that caused the error for debugging.
         console.error("Raw Gemini Response object:", JSON.stringify(geminiResponse, null, 2));
 
         // Propagate a user-friendly error.
-        throw new Error("The AI model's response could not be processed. It might have been malformed or incomplete.");
+        throw new Error("The AI model's response could not be processed. It might have been malformed or blocked.");
     }
 
 
