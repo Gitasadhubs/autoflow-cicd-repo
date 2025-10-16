@@ -4,7 +4,28 @@
 // correctly typed on `VercelRequest` and `VercelResponse`.
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { GoogleGenAI, Type, GenerateContentResponse, HarmCategory, HarmBlockThreshold } from '@google/genai';
-import { TechStack, DeploymentTarget, DeploymentEnvironment } from '../types.ts';
+
+// Copied from types.ts to make the Vercel function self-contained and avoid bundling issues.
+export enum TechStack {
+  React = 'React (Vite)',
+  NextJS = 'Next.js',
+  NodeJS = 'Node.js (Express)',
+  Vue = 'Vue.js',
+  Static = 'Static HTML/JS'
+}
+
+export enum DeploymentTarget {
+  Vercel = 'Vercel',
+  Firebase = 'Firebase Hosting',
+  GitHubPages = 'GitHub Pages',
+  Railway = 'Railway',
+}
+
+export enum DeploymentEnvironment {
+    Staging = 'Staging',
+    Production = 'Production',
+}
+
 
 interface GenerationParams {
     techStack: TechStack;
