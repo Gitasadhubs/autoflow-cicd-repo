@@ -122,8 +122,8 @@ export const getDeploymentsForRepo = async (token:string, owner: string, repo: s
     const deployments = await githubApiRequest<Deployment[]>(`/repos/${owner}/${repo}/deployments`, token);
 
     // Get the latest status for each deployment and try to find its workflow run ID
-    const deploymentsWithStatus = await Promise.all(
-        deployments.map(async (dep) => {
+    const deploymentPromises = deployments.map(async (dep) => {
+        try {
             const statuses = await githubApiRequest<DeploymentStatusPayload[]>(dep.statuses_url, token);
             const latestStatus = statuses.length > 0 ? statuses[0].state : DeploymentStatus.Pending;
             
@@ -146,9 +146,18 @@ export const getDeploymentsForRepo = async (token:string, owner: string, repo: s
             }
 
             return { ...dep, status: latestStatus, duration, runId };
-        })
-    );
-    return deploymentsWithStatus;
+        } catch (error) {
+            console.error(`Failed to process deployment ID ${dep.id} for repo ${owner}/${repo}:`, error);
+            // Return null for this deployment so Promise.all doesn't reject, allowing other deployments to load.
+            return null;
+        }
+    });
+
+    const deploymentsWithStatus = await Promise.all(deploymentPromises);
+
+    // Filter out any deployments that failed to process.
+    // The type assertion is necessary because filter() doesn't automatically narrow the type.
+    return deploymentsWithStatus.filter(d => d !== null) as (Deployment & { status: DeploymentStatus, duration: string })[];
 }
 
 
