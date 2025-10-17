@@ -7,11 +7,19 @@ interface WorkflowGenerationResponse {
   secrets: RequiredSecret[];
 }
 
+interface Triggers {
+    push: boolean;
+    pullRequest: boolean;
+    schedule: boolean;
+}
+
 export const generateWorkflow = async (
   techStack: TechStack,
   deploymentTarget: DeploymentTarget,
   deploymentEnvironment: DeploymentEnvironment,
-  repoName: string
+  repoName: string,
+  triggers: Triggers,
+  cronSchedule: string
 ): Promise<WorkflowGenerationResponse> => {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 30000); // 30-second timeout
@@ -27,6 +35,8 @@ export const generateWorkflow = async (
         deploymentTarget,
         deploymentEnvironment,
         repoName,
+        triggers,
+        cronSchedule
       }),
       signal: controller.signal, // Pass the signal to fetch
     });

@@ -79,6 +79,8 @@ const PipelineConfigurator: React.FC<PipelineConfiguratorProps> = ({ repo, token
   const [techStack, setTechStack] = useState<TechStack>(TechStack.React);
   const [deploymentTarget, setDeploymentTarget] = useState<DeploymentTarget>(DeploymentTarget.Vercel);
   const [deploymentEnvironment, setDeploymentEnvironment] = useState<DeploymentEnvironment>(DeploymentEnvironment.Production);
+  const [triggers, setTriggers] = useState({ push: true, pullRequest: false, schedule: false });
+  const [cronSchedule, setCronSchedule] = useState('0 0 * * *'); // Daily at midnight
   const [generatedYaml, setGeneratedYaml] = useState<string>('');
   const [requiredVariables, setRequiredVariables] = useState<RequiredVariable[]>([]);
   const [requiredSecrets, setRequiredSecrets] = useState<RequiredSecret[]>([]);
@@ -124,6 +126,9 @@ const PipelineConfigurator: React.FC<PipelineConfiguratorProps> = ({ repo, token
     }
   }, [commitProgress, isCommitting, requiredVariables.length, requiredSecrets.length, repo.id, onPipelineConfigured, onClose]);
 
+  const handleTriggerChange = (trigger: keyof typeof triggers, checked: boolean) => {
+    setTriggers(prev => ({ ...prev, [trigger]: checked }));
+  };
 
   const handleGenerate = useCallback(async () => {
     setIsLoading(true);
@@ -151,7 +156,7 @@ const PipelineConfigurator: React.FC<PipelineConfiguratorProps> = ({ repo, token
     }, 2500);
 
     try {
-        const { yaml, variables, secrets } = await generateWorkflow(techStack, deploymentTarget, deploymentEnvironment, repo.name);
+        const { yaml, variables, secrets } = await generateWorkflow(techStack, deploymentTarget, deploymentEnvironment, repo.name, triggers, cronSchedule);
         setGeneratedYaml(yaml);
         setRequiredVariables(variables);
         setRequiredSecrets(secrets);
@@ -172,7 +177,7 @@ const PipelineConfigurator: React.FC<PipelineConfiguratorProps> = ({ repo, token
             loadingIntervalRef.current = null;
         }
     }
-  }, [techStack, deploymentTarget, deploymentEnvironment, repo.name]);
+  }, [techStack, deploymentTarget, deploymentEnvironment, repo.name, triggers, cronSchedule]);
   
   const handleVariableChange = (name: string, value: string) => {
     setVariableValues(prev => ({ ...prev, [name]: value }));
@@ -275,6 +280,8 @@ const PipelineConfigurator: React.FC<PipelineConfiguratorProps> = ({ repo, token
     runSteps(step);
   }, [runSteps]);
 
+  const targetBranch = deploymentEnvironment === DeploymentEnvironment.Production ? 'main' : 'staging';
+
   return (
     <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center p-4 z-50">
       <div className="bg-light-surface dark:bg-brand-surface rounded-xl shadow-2xl w-full max-w-3xl transform transition-all animate-scale-up border border-gray-200 dark:border-gray-700">
@@ -319,6 +326,46 @@ const PipelineConfigurator: React.FC<PipelineConfiguratorProps> = ({ repo, token
                 >
                     {Object.values(DeploymentEnvironment).map(de => <option key={de} value={de}>{de}</option>)}
                 </select>
+                </div>
+            </div>
+          </fieldset>
+
+           <fieldset className="p-4 border border-gray-300 dark:border-gray-700 rounded-lg">
+            <legend className="text-sm font-medium text-gray-700 dark:text-gray-300 px-2">Workflow Triggers</legend>
+            <div className="pt-2 space-y-3">
+                <div className="flex items-center">
+                    <input id="trigger-push" type="checkbox" checked={triggers.push} onChange={e => handleTriggerChange('push', e.target.checked)} className="h-4 w-4 rounded border-gray-300 dark:border-gray-600 text-brand-primary focus:ring-brand-secondary bg-gray-100 dark:bg-gray-900" />
+                    <label htmlFor="trigger-push" className="ml-3 text-sm text-gray-800 dark:text-gray-300">
+                        On push to <code className="bg-gray-200 dark:bg-gray-700 text-brand-secondary font-mono text-xs py-0.5 px-1.5 rounded-md">{targetBranch}</code> branch
+                    </label>
+                </div>
+                 <div className="flex items-center">
+                    <input id="trigger-pr" type="checkbox" checked={triggers.pullRequest} onChange={e => handleTriggerChange('pullRequest', e.target.checked)} className="h-4 w-4 rounded border-gray-300 dark:border-gray-600 text-brand-primary focus:ring-brand-secondary bg-gray-100 dark:bg-gray-900" />
+                    <label htmlFor="trigger-pr" className="ml-3 text-sm text-gray-800 dark:text-gray-300">
+                        On pull request to <code className="bg-gray-200 dark:bg-gray-700 text-brand-secondary font-mono text-xs py-0.5 px-1.5 rounded-md">{targetBranch}</code> branch
+                    </label>
+                </div>
+                <div className="flex items-start">
+                    <div className="flex items-center h-5">
+                       <input id="trigger-schedule" type="checkbox" checked={triggers.schedule} onChange={e => handleTriggerChange('schedule', e.target.checked)} className="h-4 w-4 rounded border-gray-300 dark:border-gray-600 text-brand-primary focus:ring-brand-secondary bg-gray-100 dark:bg-gray-900" />
+                    </div>
+                    <div className="ml-3 text-sm">
+                        <label htmlFor="trigger-schedule" className="text-gray-800 dark:text-gray-300">On a schedule (cron syntax)</label>
+                        {triggers.schedule && (
+                        <div className="mt-2 flex items-center">
+                            <input 
+                                type="text" 
+                                value={cronSchedule} 
+                                onChange={e => setCronSchedule(e.target.value)} 
+                                className="w-full md:w-auto font-mono bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-200 text-sm rounded-lg focus:ring-brand-primary focus:border-brand-primary block p-2 placeholder-gray-400 dark:placeholder-gray-500"
+                                placeholder="e.g., '0 8 * * 1-5'"
+                            />
+                            <a href="https://crontab.guru/" target="_blank" rel="noopener noreferrer" className="text-xs text-brand-secondary hover:underline ml-2 whitespace-nowrap">
+                                cron help
+                            </a>
+                        </div>
+                        )}
+                    </div>
                 </div>
             </div>
           </fieldset>

@@ -22,7 +22,8 @@ async function githubApiRequest<T>(endpoint: string, token: string, options: Req
     throw new Error(`GitHub API Error: ${response.status} ${response.statusText} - ${errorData.message || 'Check repository permissions and token scopes.'}`);
   }
   
-  if (response.status === 204 || response.status === 201) { // No Content or Created
+  // Handle 202 Accepted for cancellation request
+  if (response.status === 202 || response.status === 204 || response.status === 201) { // Accepted, No Content or Created
       return null as T;
   }
 
@@ -120,7 +121,7 @@ export const getLatestWorkflowRun = async (
 export const getDeploymentsForRepo = async (token:string, owner: string, repo: string): Promise<(Deployment & { status: DeploymentStatus, duration: string })[]> => {
     const deployments = await githubApiRequest<Deployment[]>(`/repos/${owner}/${repo}/deployments`, token);
 
-    // Get the latest status for each deployment
+    // Get the latest status for each deployment and try to find its workflow run ID
     const deploymentsWithStatus = await Promise.all(
         deployments.map(async (dep) => {
             const statuses = await githubApiRequest<DeploymentStatusPayload[]>(dep.statuses_url, token);
@@ -129,10 +130,22 @@ export const getDeploymentsForRepo = async (token:string, owner: string, repo: s
             const durationMs = new Date(dep.updated_at).getTime() - new Date(dep.created_at).getTime();
             const durationSec = Math.floor(durationMs / 1000);
             const durationMin = Math.floor(durationSec / 60);
-
             const duration = latestStatus === DeploymentStatus.InProgress ? '...' : `${durationMin}m ${durationSec % 60}s`;
 
-            return { ...dep, status: latestStatus, duration };
+            let runId: number | undefined;
+            // Try to associate the deployment with a workflow run via its commit SHA
+            if (dep.sha) {
+                 try {
+                    const runsResponse = await githubApiRequest<{ workflow_runs: GitHubWorkflowRun[] }>(`/repos/${owner}/${repo}/actions/runs?head_sha=${dep.sha}&per_page=1`, token);
+                    if (runsResponse.workflow_runs.length > 0) {
+                        runId = runsResponse.workflow_runs[0].id;
+                    }
+                 } catch (e) {
+                    console.warn(`Could not find workflow run for SHA ${dep.sha}`, e);
+                 }
+            }
+
+            return { ...dep, status: latestStatus, duration, runId };
         })
     );
     return deploymentsWithStatus;
@@ -313,6 +326,21 @@ export const rerunFailedJobs = (
         { method: 'POST' }
     );
 };
+
+// Function to cancel a workflow run
+export const cancelWorkflowRun = (
+    token: string,
+    owner: string,
+    repo: string,
+    runId: number
+): Promise<void> => {
+    return githubApiRequest(
+        `/repos/${owner}/${repo}/actions/runs/${runId}/cancel`,
+        token,
+        { method: 'POST' }
+    );
+};
+
 
 interface GitHubWorkflow {
   id: number;

@@ -69,6 +69,7 @@ export interface Deployment {
   created_at: string;
   updated_at: string;
   statuses_url: string;
+  runId?: number; // Added to link deployment to a specific workflow run
 }
 
 // Represents the status of a specific deployment

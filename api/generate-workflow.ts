@@ -26,12 +26,19 @@ export enum DeploymentEnvironment {
     Production = 'Production',
 }
 
+interface Triggers {
+    push: boolean;
+    pullRequest: boolean;
+    schedule: boolean;
+}
 
 interface GenerationParams {
     techStack: TechStack;
     deploymentTarget: DeploymentTarget;
     deploymentEnvironment: DeploymentEnvironment;
     repoName: string;
+    triggers: Triggers;
+    cronSchedule: string;
 }
 
 const generateWorkflowLogic = async ({
@@ -39,6 +46,8 @@ const generateWorkflowLogic = async ({
     deploymentTarget,
     deploymentEnvironment,
     repoName,
+    triggers,
+    cronSchedule
 }: GenerationParams) => {
     if (!process.env.API_KEY) {
         console.error("API_KEY environment variable not set on the server.");
@@ -88,10 +97,24 @@ const generateWorkflowLogic = async ({
 
     const detailedInstruction = targetSpecificInstructions[deploymentTarget as keyof typeof targetSpecificInstructions] || '';
 
-    // Dynamically create the trigger instruction based on the environment
-    const triggerInstruction = deploymentEnvironment === DeploymentEnvironment.Production
-        ? "The workflow MUST trigger on a push to the `main` branch. Example: `on: push: branches: [ main ]`"
-        : "The workflow MUST trigger on a push to a `staging` branch. Example: `on: push: branches: [ staging ]`";
+    // Dynamically create the trigger instruction based on the environment and selections
+    const branch = deploymentEnvironment === DeploymentEnvironment.Production ? 'main' : 'staging';
+    const triggerInstructions = [`- A 'workflow_dispatch' event to allow manual triggering.`];
+    if (triggers.push) {
+        triggerInstructions.push(`- A 'push' event on the \`${branch}\` branch. Example: \`push: branches: [ ${branch} ]\``);
+    }
+    if (triggers.pullRequest) {
+        triggerInstructions.push(`- A 'pull_request' event targeting the \`${branch}\` branch. Example: \`pull_request: branches: [ ${branch} ]\``);
+    }
+    if (triggers.schedule && cronSchedule) {
+        triggerInstructions.push(`- A 'schedule' event using the cron syntax '${cronSchedule}'. Example: \`schedule: - cron: '${cronSchedule}'\``);
+    }
+    // Fallback in case user unchecks everything, though UI defaults to push.
+    if (triggerInstructions.length <= 1 && !triggers.push) {
+        triggerInstructions.push(`- A 'push' event on the \`${branch}\` branch. Example: \`push: branches: [ ${branch} ]\``);
+    }
+    const triggerBlockInstruction = triggerInstructions.join('\n    ');
+
 
     const prompt = `
     Generate a complete, 100% accurate, and production-ready GitHub Actions workflow YAML file to build and deploy a "${techStack}" application to "${deploymentTarget}".
@@ -101,7 +124,8 @@ const generateWorkflowLogic = async ({
 
     CRITICAL REQUIREMENTS FOR THE YAML:
     1. It MUST include a descriptive 'name' for the workflow, like "Deploy ${techStack} to ${deploymentTarget} (${deploymentEnvironment})".
-    2. ${triggerInstruction}
+    2. The workflow MUST be triggered by the following events under a single \`on:\` key:
+    ${triggerBlockInstruction}
     3. The jobs MUST run on 'ubuntu-latest'.
     4. YAML indentation MUST be correct (using 2 spaces). This is a critical point of failure.
     5. You MUST use the latest stable versions of official GitHub Actions (e.g., actions/checkout@v4, actions/setup-node@v4).
@@ -244,9 +268,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(405).json({ error: 'Method Not Allowed' });
   }
 
-  const { techStack, deploymentTarget, deploymentEnvironment, repoName } = req.body;
+  const { techStack, deploymentTarget, deploymentEnvironment, repoName, triggers, cronSchedule } = req.body;
 
-  if (!techStack || !deploymentTarget || !deploymentEnvironment || !repoName) {
+  if (!techStack || !deploymentTarget || !deploymentEnvironment || !repoName || !triggers) {
     return res.status(400).json({ error: "Missing required parameters in the request body." });
   }
 
@@ -256,6 +280,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         deploymentTarget,
         deploymentEnvironment,
         repoName,
+        triggers,
+        cronSchedule
     });
     return res.status(200).json(result);
   } catch (error) {

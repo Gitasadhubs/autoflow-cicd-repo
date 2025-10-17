@@ -8,7 +8,7 @@ import {
     CheckCircleIcon, XCircleIcon, ArrowPathIcon, CodeBracketIcon, LockClosedIcon, 
     StopCircleIcon, LogoIcon, QuestionMarkCircleIcon, ChatBubbleOvalLeftIcon, SunIcon, MoonIcon, MagnifyingGlassIcon
 } from './icons';
-import { getRepos, getDeploymentsForRepo, hasWorkflows, getLatestWorkflowRun, rerunWorkflow, rerunFailedJobs, triggerRedeployment } from '../services/githubService';
+import { getRepos, getDeploymentsForRepo, hasWorkflows, getLatestWorkflowRun, rerunWorkflow, rerunFailedJobs, triggerRedeployment, cancelWorkflowRun } from '../services/githubService';
 
 interface DashboardProps {
   user: User;
@@ -206,25 +206,55 @@ const DeploymentStatusIcon: React.FC<{ status: DeploymentStatus }> = ({ status }
   }
 };
 
-const DeploymentListItem: React.FC<{ deployment: Deployment & { status: DeploymentStatus, duration: string }; onLogView: (deployment: Deployment) => void }> = ({ deployment, onLogView }) => (
-    <div className="grid grid-cols-12 items-center gap-4 py-3 px-4 text-sm text-gray-700 dark:text-gray-300 border-b border-gray-200 dark:border-gray-700 last:border-b-0">
-        <div className="col-span-1"><DeploymentStatusIcon status={deployment.status} /></div>
-        <div className="col-span-4 font-medium">
-            <p className="truncate text-gray-900 dark:text-gray-100">{deployment.description || 'No description'}</p>
-            <p className="text-gray-500 dark:text-gray-400 font-mono text-xs">{deployment.sha.substring(0, 7)}</p>
+type DeploymentWithStatus = Deployment & { status: DeploymentStatus, duration: string };
+
+const DeploymentListItem: React.FC<{ 
+    deployment: DeploymentWithStatus;
+    onLogView: (deployment: Deployment) => void;
+    onCancel: (deployment: Deployment) => void;
+    isCanceling: boolean;
+}> = ({ deployment, onLogView, onCancel, isCanceling }) => {
+    const canCancel = [
+        DeploymentStatus.InProgress,
+        DeploymentStatus.Pending,
+        DeploymentStatus.Queued
+    ].includes(deployment.status);
+
+    return (
+        <div className="grid grid-cols-12 items-center gap-4 py-3 px-4 text-sm text-gray-700 dark:text-gray-300 border-b border-gray-200 dark:border-gray-700 last:border-b-0">
+            <div className="col-span-1"><DeploymentStatusIcon status={deployment.status} /></div>
+            <div className="col-span-4 font-medium">
+                <p className="truncate text-gray-900 dark:text-gray-100">{deployment.description || 'No description'}</p>
+                <p className="text-gray-500 dark:text-gray-400 font-mono text-xs">{deployment.sha.substring(0, 7)}</p>
+            </div>
+            <div className="col-span-2 text-gray-600 dark:text-gray-400">{deployment.ref}</div>
+            <div className="col-span-2 text-gray-600 dark:text-gray-400">{deployment.duration}</div>
+            <div className="col-span-3 flex justify-end items-center space-x-4">
+                 <button onClick={() => onLogView(deployment)} className="text-brand-secondary hover:underline font-semibold">View Details</button>
+                 {canCancel && deployment.runId && (
+                     <button 
+                        onClick={() => onCancel(deployment)} 
+                        disabled={isCanceling}
+                        className="text-yellow-600 dark:text-yellow-500 hover:underline font-semibold disabled:opacity-50 disabled:cursor-wait"
+                        title="Cancel this deployment"
+                    >
+                        {isCanceling ? (
+                            <div className="flex items-center">
+                                <ArrowPathIcon className="w-4 h-4 mr-1 animate-spin" />
+                                Canceling...
+                            </div>
+                        ) : 'Cancel'}
+                    </button>
+                 )}
+            </div>
         </div>
-        <div className="col-span-2 text-gray-600 dark:text-gray-400">{deployment.ref}</div>
-        <div className="col-span-2 text-gray-600 dark:text-gray-400">{deployment.duration}</div>
-        <div className="col-span-3 flex justify-end">
-             <button onClick={() => onLogView(deployment)} className="text-brand-secondary hover:underline font-semibold">View Details</button>
-        </div>
-    </div>
-);
+    );
+};
 
 
 const Dashboard: React.FC<DashboardProps> = ({ user, token, onLogout, theme, onToggleTheme }) => {
   const [repositories, setRepositories] = useState<Repository[]>([]);
-  const [deployments, setDeployments] = useState<(Deployment & { status: DeploymentStatus, duration: string })[]>([]);
+  const [deployments, setDeployments] = useState<DeploymentWithStatus[]>([]);
   const [loadingRepos, setLoadingRepos] = useState(true);
   const [loadingDeployments, setLoadingDeployments] = useState(false);
   
@@ -240,6 +270,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, token, onLogout, theme, onT
   const [searchQuery, setSearchQuery] = useState('');
   const [isRedeploying, setIsRedeploying] = useState<boolean>(false);
   const [redeployStatus, setRedeployStatus] = useState<{ type: 'success' | 'error', message: string } | null>(null);
+  const [cancelingRunId, setCancelingRunId] = useState<number | null>(null);
   
   const fetchRepos = useCallback(async (showLoading = true) => {
     if (showLoading) {
@@ -392,6 +423,27 @@ const Dashboard: React.FC<DashboardProps> = ({ user, token, onLogout, theme, onT
         setTimeout(() => setRedeployStatus(null), 6000);
     }
   }, [selectedRepo, token, fetchRepos, fetchDeployments]);
+
+  const handleCancelDeployment = useCallback(async (deployment: Deployment) => {
+    if (!selectedRepo || !deployment.runId) {
+        alert("Cannot cancel: Workflow run ID not found for this deployment.");
+        return;
+    }
+    
+    setCancelingRunId(deployment.runId);
+    try {
+        await cancelWorkflowRun(token, selectedRepo.owner.login, selectedRepo.name, deployment.runId);
+        // Wait a few seconds for GitHub API to process cancellation before refreshing
+        setTimeout(() => {
+            fetchDeployments(selectedRepo);
+        }, 4000);
+    } catch (error) {
+        const message = error instanceof Error ? error.message : "An unknown error occurred.";
+        alert(`Failed to cancel deployment: ${message}`);
+    } finally {
+        setTimeout(() => setCancelingRunId(null), 4000);
+    }
+  }, [selectedRepo, token, fetchDeployments]);
   
   const handlePipelineConfigured = useCallback((repoId: number) => {
     let configuredRepo: Repository | undefined;
@@ -529,32 +581,51 @@ const Dashboard: React.FC<DashboardProps> = ({ user, token, onLogout, theme, onT
                     <div className="col-span-4">Commit</div>
                     <div className="col-span-2">Branch</div>
                     <div className="col-span-2">Duration</div>
-                    <div className="col-span-3 text-right">Details</div>
+                    <div className="col-span-3 text-right">Actions</div>
                 </div>
                 <div className="min-h-[200px]">
-                    {loadingDeployments && (
+                    {loadingDeployments ? (
                         <div className="flex items-center justify-center h-[200px] flex-col">
                             <LogoIcon className="w-12 h-12 text-gray-800 dark:text-gray-200 animate-rocket-float" />
                             <p className="mt-3 text-gray-600 dark:text-gray-400">Fetching deployments...</p>
                         </div>
-                    )}
-                    {deploymentError && <p className="text-red-500 p-4 text-center">Failed to load deployments: {deploymentError}</p>}
-                    
-                    {!loadingDeployments && !selectedRepo && (
-                         <div className="flex items-center justify-center h-[200px]">
+                    ) : deploymentError ? (
+                        <div className="flex items-center justify-center h-full p-4">
+                            <div className="bg-red-500/10 border-l-4 border-red-500 text-red-700 dark:text-red-300 p-4 rounded-lg w-full" role="alert">
+                                <div className="flex justify-between items-center">
+                                    <div>
+                                        <p className="font-bold">Failed to load deployments</p>
+                                        <p className="text-sm">{deploymentError}</p>
+                                    </div>
+                                    <button
+                                        onClick={() => { if (selectedRepo) fetchDeployments(selectedRepo); }}
+                                        className="bg-red-100 dark:bg-red-900/50 text-red-700 dark:text-red-300 hover:bg-red-200 dark:hover:bg-red-900/80 font-semibold py-1 px-3 rounded-md transition-colors flex items-center text-sm"
+                                    >
+                                        <ArrowPathIcon className="w-4 h-4 mr-1.5" />
+                                        Retry
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    ) : !selectedRepo ? (
+                        <div className="flex items-center justify-center h-[200px]">
                             <p className="text-gray-500 dark:text-gray-400 text-center">Select a repository from the left to view its deployments.</p>
                         </div>
-                    )}
-
-                    {!loadingDeployments && selectedRepo && deployments.length === 0 && !deploymentError && (
-                         <div className="flex items-center justify-center h-[200px]">
+                    ) : deployments.length === 0 ? (
+                        <div className="flex items-center justify-center h-[200px]">
                             <p className="text-gray-500 dark:text-gray-400 text-center">No deployments found for this repository.</p>
                         </div>
+                    ) : (
+                        deployments.map(dep => (
+                            <DeploymentListItem 
+                                key={dep.id} 
+                                deployment={dep} 
+                                onLogView={setViewingLogs}
+                                onCancel={handleCancelDeployment}
+                                isCanceling={cancelingRunId === dep.runId}
+                            />
+                        ))
                     )}
-                    
-                    {deployments.map(dep => (
-                        <DeploymentListItem key={dep.id} deployment={dep} onLogView={setViewingLogs} />
-                    ))}
                 </div>
             </div>
           </div>
