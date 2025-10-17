@@ -7,10 +7,21 @@ interface WorkflowGenerationResponse {
   secrets: RequiredSecret[];
 }
 
-interface Triggers {
-    push: boolean;
-    pullRequest: boolean;
-    schedule: boolean;
+export interface AdvancedTriggers {
+  push: {
+    enabled: boolean;
+    branches: string[];
+    branchesIgnore: string[];
+  };
+  pullRequest: {
+    enabled: boolean;
+    branches: string[];
+    branchesIgnore: string[];
+  };
+  schedule: {
+    enabled: boolean;
+    crons: string[];
+  };
 }
 
 export const generateWorkflow = async (
@@ -18,8 +29,7 @@ export const generateWorkflow = async (
   deploymentTarget: DeploymentTarget,
   deploymentEnvironment: DeploymentEnvironment,
   repoName: string,
-  triggers: Triggers,
-  cronSchedule: string
+  triggers: AdvancedTriggers
 ): Promise<WorkflowGenerationResponse> => {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 30000); // 30-second timeout
@@ -35,8 +45,7 @@ export const generateWorkflow = async (
         deploymentTarget,
         deploymentEnvironment,
         repoName,
-        triggers,
-        cronSchedule
+        triggers
       }),
       signal: controller.signal, // Pass the signal to fetch
     });

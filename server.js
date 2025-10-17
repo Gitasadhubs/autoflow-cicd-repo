@@ -27,7 +27,6 @@ const generateWorkflowLogic = async ({
     deploymentEnvironment,
     repoName,
     triggers,
-    cronSchedule
 }) => {
     if (!process.env.API_KEY) {
         console.error("API_KEY environment variable not set on the server.");
@@ -78,23 +77,62 @@ const generateWorkflowLogic = async ({
 
     const detailedInstruction = targetSpecificInstructions[deploymentTarget] || '';
 
-    // Dynamically create the trigger instruction based on the environment and selections
     const branch = deploymentEnvironment === 'Production' ? 'main' : 'staging';
     const triggerInstructions = [`- A 'workflow_dispatch' event to allow manual triggering.`];
-    if (triggers.push) {
-        triggerInstructions.push(`- A 'push' event on the \`${branch}\` branch. Example: \`push: branches: [ ${branch} ]\``);
+
+    // Push Trigger
+    if (triggers.push.enabled) {
+        const parts = [];
+        const yamlParts = ['push:'];
+        if (triggers.push.branches.length > 0) {
+            parts.push(`on branches: ${triggers.push.branches.join(', ')}`);
+            yamlParts.push(`  branches: [ ${triggers.push.branches.join(', ')} ]`);
+        } else {
+            parts.push(`on the \`${branch}\` branch`);
+            yamlParts.push(`  branches: [ ${branch} ]`);
+        }
+        if (triggers.push.branchesIgnore.length > 0) {
+            parts.push(`ignoring branches: ${triggers.push.branchesIgnore.join(', ')}`);
+            yamlParts.push(`  branches-ignore: [ ${triggers.push.branchesIgnore.map(b => `'${b}'`).join(', ')} ]`);
+        }
+        const desc = parts.join(', ');
+        const yamlExample = yamlParts.join('\\n');
+        triggerInstructions.push(`- A 'push' event ${desc}. Example: \`${yamlExample}\``);
     }
-    if (triggers.pullRequest) {
-        triggerInstructions.push(`- A 'pull_request' event targeting the \`${branch}\` branch. Example: \`pull_request: branches: [ ${branch} ]\``);
+
+    // Pull Request Trigger
+    if (triggers.pullRequest.enabled) {
+        const parts = [];
+        const yamlParts = ['pull_request:'];
+        if (triggers.pullRequest.branches.length > 0) {
+            parts.push(`for pull requests targeting branches: ${triggers.pullRequest.branches.join(', ')}`);
+            yamlParts.push(`  branches: [ ${triggers.pullRequest.branches.join(', ')} ]`);
+        } else {
+            parts.push(`for pull requests targeting the \`${branch}\` branch`);
+            yamlParts.push(`  branches: [ ${branch} ]`);
+        }
+        if (triggers.pullRequest.branchesIgnore.length > 0) {
+            parts.push(`ignoring pull requests for branches: ${triggers.pullRequest.branchesIgnore.join(', ')}`);
+            yamlParts.push(`  branches-ignore: [ ${triggers.pullRequest.branchesIgnore.map(b => `'${b}'`).join(', ')} ]`);
+        }
+        const desc = parts.join(', ');
+        const yamlExample = yamlParts.join('\\n');
+        triggerInstructions.push(`- A 'pull_request' event ${desc}. Example: \`${yamlExample}\``);
     }
-    if (triggers.schedule && cronSchedule) {
-        triggerInstructions.push(`- A 'schedule' event using the cron syntax '${cronSchedule}'. Example: \`schedule: - cron: '${cronSchedule}'\``);
+
+    // Schedule Trigger
+    if (triggers.schedule.enabled && triggers.schedule.crons.length > 0) {
+        const cronStrings = triggers.schedule.crons.map(c => `'${c}'`).join(', ');
+        const scheduleYaml = `schedule:\\n${triggers.schedule.crons.map(c => `    - cron: '${c}'`).join('\\n')}`;
+        triggerInstructions.push(`- A 'schedule' event with cron triggers: ${cronStrings}. Example: \`${scheduleYaml}\``);
     }
-     // Fallback in case user unchecks everything.
-    if (triggerInstructions.length <= 1 && !triggers.push) {
+    
+    // Fallback in case user unchecks everything.
+    if (triggerInstructions.length <= 1) {
         triggerInstructions.push(`- A 'push' event on the \`${branch}\` branch. Example: \`push: branches: [ ${branch} ]\``);
     }
     const triggerBlockInstruction = triggerInstructions.join('\n    ');
+
 
     const prompt = `
     Generate a complete, 100% accurate, and production-ready GitHub Actions workflow YAML file to build and deploy a "${techStack}" application to "${deploymentTarget}".
@@ -308,7 +346,7 @@ app.post('/api/encrypt', async (req, res) => {
 
 // Endpoint for workflow generation
 app.post('/api/generate-workflow', async (req, res) => {
-  const { techStack, deploymentTarget, deploymentEnvironment, repoName, triggers, cronSchedule } = req.body;
+  const { techStack, deploymentTarget, deploymentEnvironment, repoName, triggers } = req.body;
 
   if (!techStack || !deploymentTarget || !deploymentEnvironment || !repoName || !triggers) {
     return res.status(400).json({ error: "Missing required parameters in the request body." });
@@ -321,7 +359,6 @@ app.post('/api/generate-workflow', async (req, res) => {
       deploymentEnvironment,
       repoName,
       triggers,
-      cronSchedule
     });
     return res.status(200).json(result);
   } catch (error) {

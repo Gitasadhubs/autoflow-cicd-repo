@@ -1,10 +1,10 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { Repository, TechStack, DeploymentTarget, DeploymentEnvironment, RequiredVariable, RequiredSecret } from '../types';
-import { generateWorkflow } from '../services/geminiService';
+import { generateWorkflow, AdvancedTriggers } from '../services/geminiService';
 import { createWorkflowFile, setRepositoryVariable, setRepositorySecret } from '../services/githubService';
 import { 
     ClipboardIcon, ClipboardCheckIcon, CodeBracketIcon, CheckCircleIcon, LockClosedIcon, 
-    EyeIcon, EyeSlashIcon, LogoIcon, ArrowPathIcon, XCircleIcon 
+    EyeIcon, EyeSlashIcon, LogoIcon, ArrowPathIcon, XCircleIcon, XCircleIcon as XIcon
 } from './icons';
 
 interface PipelineConfiguratorProps {
@@ -21,6 +21,18 @@ interface CommitProgress {
     variables: CommitProgressState;
     secrets: CommitProgressState;
 }
+
+// New state structures for advanced trigger configuration
+interface TriggerBranchConfig {
+    enabled: boolean;
+    branches: string; // comma-separated
+    branchesIgnore: string; // comma-separated
+}
+interface TriggerScheduleConfig {
+    enabled: boolean;
+    crons: string[];
+}
+
 
 const initialCommitProgress: CommitProgress = {
     workflowFile: 'pending',
@@ -79,8 +91,12 @@ const PipelineConfigurator: React.FC<PipelineConfiguratorProps> = ({ repo, token
   const [techStack, setTechStack] = useState<TechStack>(TechStack.React);
   const [deploymentTarget, setDeploymentTarget] = useState<DeploymentTarget>(DeploymentTarget.Vercel);
   const [deploymentEnvironment, setDeploymentEnvironment] = useState<DeploymentEnvironment>(DeploymentEnvironment.Production);
-  const [triggers, setTriggers] = useState({ push: true, pullRequest: false, schedule: false });
-  const [cronSchedule, setCronSchedule] = useState('0 0 * * *'); // Daily at midnight
+  
+  // State for advanced trigger configuration
+  const [pushConfig, setPushConfig] = useState<TriggerBranchConfig>({ enabled: true, branches: '', branchesIgnore: '' });
+  const [pullRequestConfig, setPullRequestConfig] = useState<TriggerBranchConfig>({ enabled: false, branches: '', branchesIgnore: '' });
+  const [scheduleConfig, setScheduleConfig] = useState<TriggerScheduleConfig>({ enabled: false, crons: ['0 0 * * *'] });
+
   const [generatedYaml, setGeneratedYaml] = useState<string>('');
   const [requiredVariables, setRequiredVariables] = useState<RequiredVariable[]>([]);
   const [requiredSecrets, setRequiredSecrets] = useState<RequiredSecret[]>([]);
@@ -126,9 +142,20 @@ const PipelineConfigurator: React.FC<PipelineConfiguratorProps> = ({ repo, token
     }
   }, [commitProgress, isCommitting, requiredVariables.length, requiredSecrets.length, repo.id, onPipelineConfigured, onClose]);
 
-  const handleTriggerChange = (trigger: keyof typeof triggers, checked: boolean) => {
-    setTriggers(prev => ({ ...prev, [trigger]: checked }));
+  const handleCronChange = (index: number, value: string) => {
+    const newCrons = [...scheduleConfig.crons];
+    newCrons[index] = value;
+    setScheduleConfig(prev => ({ ...prev, crons: newCrons }));
   };
+
+  const addCron = () => {
+    setScheduleConfig(prev => ({ ...prev, crons: [...prev.crons, ''] }));
+  };
+
+  const removeCron = (index: number) => {
+    setScheduleConfig(prev => ({ ...prev, crons: prev.crons.filter((_, i) => i !== index) }));
+  };
+
 
   const handleGenerate = useCallback(async () => {
     setIsLoading(true);
@@ -156,14 +183,28 @@ const PipelineConfigurator: React.FC<PipelineConfiguratorProps> = ({ repo, token
     }, 2500);
 
     try {
-        const { yaml, variables, secrets } = await generateWorkflow(techStack, deploymentTarget, deploymentEnvironment, repo.name, triggers, cronSchedule);
+        const triggersPayload: AdvancedTriggers = {
+          push: {
+            enabled: pushConfig.enabled,
+            branches: pushConfig.branches.split(',').map(b => b.trim()).filter(Boolean),
+            branchesIgnore: pushConfig.branchesIgnore.split(',').map(b => b.trim()).filter(Boolean),
+          },
+          pullRequest: {
+            enabled: pullRequestConfig.enabled,
+            branches: pullRequestConfig.branches.split(',').map(b => b.trim()).filter(Boolean),
+            branchesIgnore: pullRequestConfig.branchesIgnore.split(',').map(b => b.trim()).filter(Boolean),
+          },
+          schedule: {
+            enabled: scheduleConfig.enabled,
+            crons: scheduleConfig.crons.filter(Boolean),
+          },
+        };
+
+        const { yaml, variables, secrets } = await generateWorkflow(techStack, deploymentTarget, deploymentEnvironment, repo.name, triggersPayload);
         setGeneratedYaml(yaml);
         setRequiredVariables(variables);
         setRequiredSecrets(secrets);
     } catch (error) {
-        // Fix for error: Argument of type 'unknown' is not assignable to parameter of type 'string'.
-        // The 'error' object in a catch block is of type 'unknown'. We must first verify
-        // it is an instance of Error before accessing 'error.message' to avoid a type error.
         if (error instanceof Error) {
             setGenerationError(error.message);
         } else {
@@ -177,7 +218,7 @@ const PipelineConfigurator: React.FC<PipelineConfiguratorProps> = ({ repo, token
             loadingIntervalRef.current = null;
         }
     }
-  }, [techStack, deploymentTarget, deploymentEnvironment, repo.name, triggers, cronSchedule]);
+  }, [techStack, deploymentTarget, deploymentEnvironment, repo.name, pushConfig, pullRequestConfig, scheduleConfig]);
   
   const handleVariableChange = (name: string, value: string) => {
     setVariableValues(prev => ({ ...prev, [name]: value }));
@@ -233,7 +274,6 @@ const PipelineConfigurator: React.FC<PipelineConfiguratorProps> = ({ repo, token
     const steps: (keyof CommitProgress)[] = ['workflowFile', 'variables', 'secrets'];
     const startIndex = steps.indexOf(startingStep);
     
-    // Reset statuses for the steps that are about to run
     setCommitProgress(prev => {
       const next = { ...prev };
       for (let i = startIndex; i < steps.length; i++) {
@@ -245,7 +285,6 @@ const PipelineConfigurator: React.FC<PipelineConfiguratorProps> = ({ repo, token
     for (let i = startIndex; i < steps.length; i++) {
       const step = steps[i];
 
-      // Skip steps that don't have associated configurations
       if ((step === 'variables' && requiredVariables.length === 0) || (step === 'secrets' && requiredSecrets.length === 0)) {
         setCommitProgress(prev => ({ ...prev, [step]: 'success' }));
         continue;
@@ -256,16 +295,13 @@ const PipelineConfigurator: React.FC<PipelineConfiguratorProps> = ({ repo, token
         await stepExecutors[step]();
         setCommitProgress(prev => ({ ...prev, [step]: 'success' }));
       } catch (error) {
-        // Fix for error: Argument of type 'unknown' is not assignable to parameter of type 'string'.
-        // The 'error' object in a catch block is of type 'unknown'. We must first verify
-        // it is an instance of Error before accessing 'error.message' to avoid a type error.
         if (error instanceof Error) {
             setCommitError(error.message);
         } else {
             setCommitError(`An unknown error occurred during the '${step}' step.`);
         }
         setCommitProgress(prev => ({ ...prev, [step]: 'error' }));
-        return; // Stop on error, allowing the user to retry
+        return;
       }
     }
   }, [executeWorkflowFileStep, executeVariablesStep, executeSecretsStep, requiredVariables.length, requiredSecrets.length]);
@@ -332,40 +368,61 @@ const PipelineConfigurator: React.FC<PipelineConfiguratorProps> = ({ repo, token
 
            <fieldset className="p-4 border border-gray-300 dark:border-gray-700 rounded-lg">
             <legend className="text-sm font-medium text-gray-700 dark:text-gray-300 px-2">Workflow Triggers</legend>
-            <div className="pt-2 space-y-3">
-                <div className="flex items-center">
-                    <input id="trigger-push" type="checkbox" checked={triggers.push} onChange={e => handleTriggerChange('push', e.target.checked)} className="h-4 w-4 rounded border-gray-300 dark:border-gray-600 text-brand-primary focus:ring-brand-secondary bg-gray-100 dark:bg-gray-900" />
-                    <label htmlFor="trigger-push" className="ml-3 text-sm text-gray-800 dark:text-gray-300">
-                        On push to <code className="bg-gray-200 dark:bg-gray-700 text-brand-secondary font-mono text-xs py-0.5 px-1.5 rounded-md">{targetBranch}</code> branch
-                    </label>
-                </div>
-                 <div className="flex items-center">
-                    <input id="trigger-pr" type="checkbox" checked={triggers.pullRequest} onChange={e => handleTriggerChange('pullRequest', e.target.checked)} className="h-4 w-4 rounded border-gray-300 dark:border-gray-600 text-brand-primary focus:ring-brand-secondary bg-gray-100 dark:bg-gray-900" />
-                    <label htmlFor="trigger-pr" className="ml-3 text-sm text-gray-800 dark:text-gray-300">
-                        On pull request to <code className="bg-gray-200 dark:bg-gray-700 text-brand-secondary font-mono text-xs py-0.5 px-1.5 rounded-md">{targetBranch}</code> branch
-                    </label>
-                </div>
-                <div className="flex items-start">
-                    <div className="flex items-center h-5">
-                       <input id="trigger-schedule" type="checkbox" checked={triggers.schedule} onChange={e => handleTriggerChange('schedule', e.target.checked)} className="h-4 w-4 rounded border-gray-300 dark:border-gray-600 text-brand-primary focus:ring-brand-secondary bg-gray-100 dark:bg-gray-900" />
+            <div className="pt-2 space-y-4">
+                {/* Push Trigger */}
+                <div>
+                    <div className="flex items-center">
+                        <input id="trigger-push" type="checkbox" checked={pushConfig.enabled} onChange={e => setPushConfig(p => ({ ...p, enabled: e.target.checked }))} className="h-4 w-4 rounded border-gray-300 dark:border-gray-600 text-brand-primary focus:ring-brand-secondary bg-gray-100 dark:bg-gray-900" />
+                        <label htmlFor="trigger-push" className="ml-3 text-sm text-gray-800 dark:text-gray-300">
+                            On push to branches
+                        </label>
                     </div>
-                    <div className="ml-3 text-sm">
-                        <label htmlFor="trigger-schedule" className="text-gray-800 dark:text-gray-300">On a schedule (cron syntax)</label>
-                        {triggers.schedule && (
-                        <div className="mt-2 flex items-center">
-                            <input 
-                                type="text" 
-                                value={cronSchedule} 
-                                onChange={e => setCronSchedule(e.target.value)} 
-                                className="w-full md:w-auto font-mono bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-200 text-sm rounded-lg focus:ring-brand-primary focus:border-brand-primary block p-2 placeholder-gray-400 dark:placeholder-gray-500"
-                                placeholder="e.g., '0 8 * * 1-5'"
-                            />
-                            <a href="https://crontab.guru/" target="_blank" rel="noopener noreferrer" className="text-xs text-brand-secondary hover:underline ml-2 whitespace-nowrap">
-                                cron help
-                            </a>
+                    {pushConfig.enabled && (
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-2 mt-2 pl-7 text-xs">
+                            <input type="text" value={pushConfig.branches} onChange={e => setPushConfig(p => ({ ...p, branches: e.target.value }))} className="w-full font-mono bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-200 rounded-lg focus:ring-brand-primary focus:border-brand-primary block p-2 placeholder-gray-400 dark:placeholder-gray-500" placeholder={`e.g., ${targetBranch}, feature/*`} />
+                            <input type="text" value={pushConfig.branchesIgnore} onChange={e => setPushConfig(p => ({ ...p, branchesIgnore: e.target.value }))} className="w-full font-mono bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-200 rounded-lg focus:ring-brand-primary focus:border-brand-primary block p-2 placeholder-gray-400 dark:placeholder-gray-500" placeholder="Branches to ignore, e.g., docs/*" />
                         </div>
-                        )}
+                    )}
+                </div>
+                {/* Pull Request Trigger */}
+                <div>
+                    <div className="flex items-center">
+                        <input id="trigger-pr" type="checkbox" checked={pullRequestConfig.enabled} onChange={e => setPullRequestConfig(p => ({ ...p, enabled: e.target.checked }))} className="h-4 w-4 rounded border-gray-300 dark:border-gray-600 text-brand-primary focus:ring-brand-secondary bg-gray-100 dark:bg-gray-900" />
+                        <label htmlFor="trigger-pr" className="ml-3 text-sm text-gray-800 dark:text-gray-300">
+                            On pull request to branches
+                        </label>
                     </div>
+                    {pullRequestConfig.enabled && (
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-2 mt-2 pl-7 text-xs">
+                           <input type="text" value={pullRequestConfig.branches} onChange={e => setPullRequestConfig(p => ({ ...p, branches: e.target.value }))} className="w-full font-mono bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-200 rounded-lg focus:ring-brand-primary focus:border-brand-primary block p-2 placeholder-gray-400 dark:placeholder-gray-500" placeholder={`e.g., ${targetBranch}`} />
+                           <input type="text" value={pullRequestConfig.branchesIgnore} onChange={e => setPullRequestConfig(p => ({ ...p, branchesIgnore: e.target.value }))} className="w-full font-mono bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-200 rounded-lg focus:ring-brand-primary focus:border-brand-primary block p-2 placeholder-gray-400 dark:placeholder-gray-500" placeholder="Branches to ignore" />
+                        </div>
+                    )}
+                </div>
+                {/* Schedule Trigger */}
+                <div>
+                    <div className="flex items-center">
+                        <input id="trigger-schedule" type="checkbox" checked={scheduleConfig.enabled} onChange={e => setScheduleConfig(p => ({...p, enabled: e.target.checked}))} className="h-4 w-4 rounded border-gray-300 dark:border-gray-600 text-brand-primary focus:ring-brand-secondary bg-gray-100 dark:bg-gray-900" />
+                        <label htmlFor="trigger-schedule" className="ml-3 text-sm text-gray-800 dark:text-gray-300">On a schedule (cron syntax)</label>
+                    </div>
+                    {scheduleConfig.enabled && (
+                        <div className="mt-2 pl-7 space-y-2">
+                            {scheduleConfig.crons.map((cron, index) => (
+                                <div key={index} className="flex items-center gap-2">
+                                    <input type="text" value={cron} onChange={e => handleCronChange(index, e.target.value)} className="flex-grow font-mono bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-200 text-sm rounded-lg focus:ring-brand-primary focus:border-brand-primary block p-2 placeholder-gray-400" placeholder="e.g., '0 8 * * 1-5'" />
+                                    {scheduleConfig.crons.length > 1 && (
+                                        <button onClick={() => removeCron(index)} className="p-1.5 text-red-500 hover:bg-red-500/10 rounded-full" aria-label="Remove schedule"><XIcon className="h-4 w-4" /></button>
+                                    )}
+                                </div>
+                            ))}
+                             <div className="flex items-center justify-between">
+                               <button onClick={addCron} className="text-xs text-brand-secondary hover:underline font-semibold">+ Add another schedule</button>
+                               <a href="https://crontab.guru/" target="_blank" rel="noopener noreferrer" className="text-xs text-brand-secondary hover:underline whitespace-nowrap">
+                                cron help
+                               </a>
+                           </div>
+                        </div>
+                    )}
                 </div>
             </div>
           </fieldset>

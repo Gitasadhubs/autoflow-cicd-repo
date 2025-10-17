@@ -26,10 +26,10 @@ export enum DeploymentEnvironment {
     Production = 'Production',
 }
 
-interface Triggers {
-    push: boolean;
-    pullRequest: boolean;
-    schedule: boolean;
+interface AdvancedTriggers {
+  push: { enabled: boolean; branches: string[]; branchesIgnore: string[]; };
+  pullRequest: { enabled: boolean; branches: string[]; branchesIgnore: string[]; };
+  schedule: { enabled: boolean; crons: string[]; };
 }
 
 interface GenerationParams {
@@ -37,8 +37,7 @@ interface GenerationParams {
     deploymentTarget: DeploymentTarget;
     deploymentEnvironment: DeploymentEnvironment;
     repoName: string;
-    triggers: Triggers;
-    cronSchedule: string;
+    triggers: AdvancedTriggers;
 }
 
 const generateWorkflowLogic = async ({
@@ -47,7 +46,6 @@ const generateWorkflowLogic = async ({
     deploymentEnvironment,
     repoName,
     triggers,
-    cronSchedule
 }: GenerationParams) => {
     if (!process.env.API_KEY) {
         console.error("API_KEY environment variable not set on the server.");
@@ -97,20 +95,58 @@ const generateWorkflowLogic = async ({
 
     const detailedInstruction = targetSpecificInstructions[deploymentTarget as keyof typeof targetSpecificInstructions] || '';
 
-    // Dynamically create the trigger instruction based on the environment and selections
     const branch = deploymentEnvironment === DeploymentEnvironment.Production ? 'main' : 'staging';
     const triggerInstructions = [`- A 'workflow_dispatch' event to allow manual triggering.`];
-    if (triggers.push) {
-        triggerInstructions.push(`- A 'push' event on the \`${branch}\` branch. Example: \`push: branches: [ ${branch} ]\``);
+
+    // Push Trigger
+    if (triggers.push.enabled) {
+        const parts = [];
+        const yamlParts = ['push:'];
+        if (triggers.push.branches.length > 0) {
+            parts.push(`on branches: ${triggers.push.branches.join(', ')}`);
+            yamlParts.push(`  branches: [ ${triggers.push.branches.join(', ')} ]`);
+        } else {
+            parts.push(`on the \`${branch}\` branch`);
+            yamlParts.push(`  branches: [ ${branch} ]`);
+        }
+        if (triggers.push.branchesIgnore.length > 0) {
+            parts.push(`ignoring branches: ${triggers.push.branchesIgnore.join(', ')}`);
+            yamlParts.push(`  branches-ignore: [ ${triggers.push.branchesIgnore.map(b => `'${b}'`).join(', ')} ]`);
+        }
+        const desc = parts.join(', ');
+        const yamlExample = yamlParts.join('\\n');
+        triggerInstructions.push(`- A 'push' event ${desc}. Example: \`${yamlExample}\``);
     }
-    if (triggers.pullRequest) {
-        triggerInstructions.push(`- A 'pull_request' event targeting the \`${branch}\` branch. Example: \`pull_request: branches: [ ${branch} ]\``);
+
+    // Pull Request Trigger
+    if (triggers.pullRequest.enabled) {
+        const parts = [];
+        const yamlParts = ['pull_request:'];
+        if (triggers.pullRequest.branches.length > 0) {
+            parts.push(`for pull requests targeting branches: ${triggers.pullRequest.branches.join(', ')}`);
+            yamlParts.push(`  branches: [ ${triggers.pullRequest.branches.join(', ')} ]`);
+        } else {
+            parts.push(`for pull requests targeting the \`${branch}\` branch`);
+            yamlParts.push(`  branches: [ ${branch} ]`);
+        }
+        if (triggers.pullRequest.branchesIgnore.length > 0) {
+            parts.push(`ignoring pull requests for branches: ${triggers.pullRequest.branchesIgnore.join(', ')}`);
+            yamlParts.push(`  branches-ignore: [ ${triggers.pullRequest.branchesIgnore.map(b => `'${b}'`).join(', ')} ]`);
+        }
+        const desc = parts.join(', ');
+        const yamlExample = yamlParts.join('\\n');
+        triggerInstructions.push(`- A 'pull_request' event ${desc}. Example: \`${yamlExample}\``);
     }
-    if (triggers.schedule && cronSchedule) {
-        triggerInstructions.push(`- A 'schedule' event using the cron syntax '${cronSchedule}'. Example: \`schedule: - cron: '${cronSchedule}'\``);
+
+    // Schedule Trigger
+    if (triggers.schedule.enabled && triggers.schedule.crons.length > 0) {
+        const cronStrings = triggers.schedule.crons.map(c => `'${c}'`).join(', ');
+        const scheduleYaml = `schedule:\\n${triggers.schedule.crons.map(c => `    - cron: '${c}'`).join('\\n')}`;
+        triggerInstructions.push(`- A 'schedule' event with cron triggers: ${cronStrings}. Example: \`${scheduleYaml}\``);
     }
-    // Fallback in case user unchecks everything, though UI defaults to push.
-    if (triggerInstructions.length <= 1 && !triggers.push) {
+    
+    // Fallback in case user unchecks everything.
+    if (triggerInstructions.length <= 1) {
         triggerInstructions.push(`- A 'push' event on the \`${branch}\` branch. Example: \`push: branches: [ ${branch} ]\``);
     }
     const triggerBlockInstruction = triggerInstructions.join('\n    ');
@@ -211,7 +247,6 @@ const generateWorkflowLogic = async ({
 
     const geminiResponse = await Promise.race([generationPromise, timeoutPromise]);
     
-    // Explicitly check for a valid response and reason before proceeding.
     const finishReason = geminiResponse.candidates?.[0]?.finishReason;
     if (finishReason && finishReason !== 'STOP' && finishReason !== 'MAX_TOKENS') {
          let userMessage = `The AI model stopped generating for an unexpected reason: ${finishReason}.`;
@@ -236,17 +271,13 @@ const generateWorkflowLogic = async ({
         parsed = JSON.parse(responseText);
 
     } catch (e) {
-        // This catch block handles errors from accessing .text (e.g., due to safety blocks) and from JSON.parse.
         console.error("Failed to process or parse Gemini response:", e);
-        // Safely log the raw response object that caused the error for debugging.
         console.error("Raw Gemini Response object:", JSON.stringify(geminiResponse, null, 2));
 
-        // Propagate a user-friendly error.
         throw new Error("The AI model's response could not be processed. It might have been malformed or blocked.");
     }
 
 
-    // Validate that the parsed object has the properties we expect.
     if (!parsed.workflow || !('requiredVariables' in parsed) || !('requiredSecrets' in parsed)) {
         console.error("Parsed JSON from Gemini is missing required properties.");
         console.error("Parsed Object:", parsed);
@@ -262,13 +293,12 @@ const generateWorkflowLogic = async ({
 };
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  // Ensure the request method is POST
   if (req.method !== 'POST') {
     res.setHeader('Allow', ['POST']);
     return res.status(405).json({ error: 'Method Not Allowed' });
   }
 
-  const { techStack, deploymentTarget, deploymentEnvironment, repoName, triggers, cronSchedule } = req.body;
+  const { techStack, deploymentTarget, deploymentEnvironment, repoName, triggers } = req.body;
 
   if (!techStack || !deploymentTarget || !deploymentEnvironment || !repoName || !triggers) {
     return res.status(400).json({ error: "Missing required parameters in the request body." });
@@ -281,7 +311,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         deploymentEnvironment,
         repoName,
         triggers,
-        cronSchedule
     });
     return res.status(200).json(result);
   } catch (error) {

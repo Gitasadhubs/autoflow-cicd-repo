@@ -1,5 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import libsodium from 'libsodium-wrappers';
+// FIX: Switched to a namespace import (`import * as ...`) to fix type resolution for `libsodium.utils`.
+import * as libsodium from 'libsodium-wrappers';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (req.method !== 'POST') {
@@ -16,16 +17,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     try {
         await libsodium.ready;
 
-        // Convert the secret and key to Uint8Array
-        // FIX: Use type assertion to bypass incorrect type definitions for libsodium.utils
-        const secretBytes = (libsodium as any).utils.decode_utf8(valueToEncrypt);
-        const publicKeyBytes = (libsodium as any).utils.decode_base64(publicKey);
+        // Convert the secret and key to Uint8Array using libsodium.utils
+        const secretBytes = libsodium.utils.decode_utf8(valueToEncrypt);
+        const publicKeyBytes = libsodium.utils.decode_base64(publicKey);
 
         // Encrypt the secret using libsodium
         const encryptedBytes = libsodium.crypto_box_seal(secretBytes, publicKeyBytes);
 
         // Convert the encrypted Uint8Array to a base64 string
-        const encryptedValue = (libsodium as any).utils.encode_base64(encryptedBytes);
+        const encryptedValue = libsodium.utils.encode_base64(encryptedBytes);
 
         return res.status(200).json({ encryptedValue });
     } catch (error) {
