@@ -1,7 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-// FIX: Switched to a default import to correctly resolve the libsodium module structure in the Vercel environment.
-// FIX: Import `utils` as a named export to resolve type errors.
-import libsodium, { utils } from 'libsodium-wrappers';
+import libsodium from 'libsodium-wrappers';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (req.method !== 'POST') {
@@ -18,18 +16,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     try {
         await libsodium.ready;
 
-        // Convert the secret and key to Uint8Array using libsodium.utils
-        // FIX: Use named `utils` import as `libsodium.utils` is not available in the type definition.
-        const secretBytes = utils.decode_utf8(valueToEncrypt);
-        // FIX: Use named `utils` import as `libsodium.utils` is not available in the type definition.
-        const publicKeyBytes = utils.decode_base64(publicKey);
+        // Use function names that are present in the type definitions to avoid build errors.
+        // from_string is an alias for decode_utf8, and from_base64/to_base64 are the correct names.
+        // FIX: The libsodium-wrappers functions are available at the top level, not under a 'utils' namespace, to align with the type definitions.
+        const secretBytes = libsodium.from_string(valueToEncrypt);
+        const publicKeyBytes = libsodium.from_base64(publicKey);
 
         // Encrypt the secret using libsodium
         const encryptedBytes = libsodium.crypto_box_seal(secretBytes, publicKeyBytes);
 
         // Convert the encrypted Uint8Array to a base64 string
-        // FIX: Use named `utils` import as `libsodium.utils` is not available in the type definition.
-        const encryptedValue = utils.encode_base64(encryptedBytes);
+        const encryptedValue = libsodium.to_base64(encryptedBytes);
 
         return res.status(200).json({ encryptedValue });
     } catch (error) {
