@@ -4,6 +4,7 @@
 // correctly typed on `VercelRequest` and `VercelResponse`.
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { GoogleGenAI, Type, GenerateContentResponse, HarmCategory, HarmBlockThreshold } from '@google/genai';
+import { RepoAnalysisResult } from '../../types';
 
 // Copied from types.ts to make the Vercel function self-contained and avoid bundling issues.
 export enum TechStack {
@@ -41,6 +42,7 @@ interface GenerationParams {
     deploymentEnvironment: DeploymentEnvironment;
     repoName: string;
     triggers: AdvancedTriggers;
+    analysis: RepoAnalysisResult;
 }
 
 const generateWorkflowLogic = async ({
@@ -49,6 +51,7 @@ const generateWorkflowLogic = async ({
     deploymentEnvironment,
     repoName,
     triggers,
+    analysis,
 }: GenerationParams) => {
     if (!process.env.API_KEY) {
         console.error("API_KEY environment variable not set on the server.");
@@ -81,7 +84,7 @@ const generateWorkflowLogic = async ({
         - The deployment MUST use the official 'actions/deploy-pages@v4' and 'actions/upload-pages-artifact@v3' actions.
         - This is a two-job process: one 'build' job to create the artifact, and one 'deploy' job that depends on the 'build' job.
         - The 'deploy' job requires specific repository permissions ('pages: write', 'id-token: write'). These permissions MUST be included at the top level of the workflow YAML.
-        - This deployment method typically does NOT require any secrets, as it uses the automatically provided GITHUB_TOKEN. Explicitly state that no secrets are required unless the build process itself needs them for other reasons.
+        - This deployment method typically do NOT require any secrets, as it uses the automatically provided GITHUB_TOKEN. Explicitly state that no secrets are required unless the build process itself needs them for other reasons.
         - Ensure the 'build' job correctly identifies the build output path (e.g., 'dist', 'build') and uploads it as an artifact named 'github-pages'.
         `,
         [DeploymentTarget.Railway]: `
@@ -117,12 +120,29 @@ const generateWorkflowLogic = async ({
     };
     
     const techStackInstruction = `
-    TECH STACK-SPECIFIC INSTRUCTIONS:
+    GENERIC TECH STACK-SPECIFIC INSTRUCTIONS (USE REPO ANALYSIS TO OVERRIDE):
     - For Node.js-based projects ("${TechStack.React}", "${TechStack.Vue}", "${TechStack.NodeJS}"): Assume the project uses 'npm'. The workflow MUST run 'npm ci' to install dependencies.
     - For frontend frameworks like "${TechStack.React}" or "${TechStack.Vue}": These are typically built using 'npm run build' and produce static assets in a 'dist' or 'build' folder. This output folder is what gets deployed.
     - For backend frameworks like "${TechStack.NodeJS}": This is a server application. The entire project (excluding node_modules) is what gets deployed, not just a build artifact.
     - For "${TechStack.Python}" projects: Assume dependencies are managed with a 'requirements.txt' file and should be installed using 'pip'.
     - For "${TechStack.Static}" projects: These typically do not have a build step, and the entire repository content is deployed.
+    `;
+    
+    const analysisInstruction = `
+    REPOSITORY ANALYSIS:
+    Based on an analysis of the repo, here are some key details. This information is the SOURCE OF TRUTH and MUST OVERRIDE any generic instructions.
+    - Detected Package Manager: "${analysis.packageManager}" (Use command: "${analysis.installCommand}")
+    - Detected Node.js Version: ${analysis.nodeVersion ? `"${analysis.nodeVersion}" (Use this exact version in setup-node)` : 'Not specified, use latest LTS'}
+    - Detected Build Command: ${analysis.buildCommand ? `"${analysis.buildCommand}"` : 'Not specified'}
+    - Detected Test Command: ${analysis.testCommand ? `"${analysis.testCommand}"` : 'Not specified'}
+    - Detected Framework: ${analysis.framework || 'Not specified'}
+    - The repository contains the following key files: ${analysis.keyFiles.map(f => f.path).join(', ')}.
+    ${analysis.keyFiles.map(f => `
+    CONTENT of "${f.path}":
+    \`\`\`
+    ${f.content}
+    \`\`\`
+    `).join('')}
     `;
 
     const detailedInstruction = targetSpecificInstructions[deploymentTarget as keyof typeof targetSpecificInstructions] || '';
@@ -130,7 +150,6 @@ const generateWorkflowLogic = async ({
     const branch = deploymentEnvironment === DeploymentEnvironment.Production ? 'main' : 'staging';
     const triggerInstructions = [`- A 'workflow_dispatch' event to allow manual triggering.`];
 
-    // Push Trigger
     if (triggers.push.enabled) {
         const parts = [];
         const yamlParts = ['push:'];
@@ -150,7 +169,6 @@ const generateWorkflowLogic = async ({
         triggerInstructions.push(`- A 'push' event ${desc}. Example: \`${yamlExample}\``);
     }
 
-    // Pull Request Trigger
     if (triggers.pullRequest.enabled) {
         const parts = [];
         const yamlParts = ['pull_request:'];
@@ -170,14 +188,12 @@ const generateWorkflowLogic = async ({
         triggerInstructions.push(`- A 'pull_request' event ${desc}. Example: \`${yamlExample}\``);
     }
 
-    // Schedule Trigger
     if (triggers.schedule.enabled && triggers.schedule.crons.length > 0) {
         const cronStrings = triggers.schedule.crons.map(c => `'${c}'`).join(', ');
         const scheduleYaml = `schedule:\\n${triggers.schedule.crons.map(c => `    - cron: '${c}'`).join('\\n')}`;
         triggerInstructions.push(`- A 'schedule' event with cron triggers: ${cronStrings}. Example: \`${scheduleYaml}\``);
     }
     
-    // Fallback in case user unchecks everything.
     if (triggerInstructions.length <= 1) {
         triggerInstructions.push(`- A 'push' event on the \`${branch}\` branch. Example: \`push: branches: [ ${branch} ]\``);
     }
@@ -187,6 +203,8 @@ const generateWorkflowLogic = async ({
     const prompt = `
     Generate a complete, 100% accurate, and production-ready GitHub Actions workflow YAML file to build and deploy a "${techStack}" application to "${deploymentTarget}".
     This workflow is for the "${deploymentEnvironment}" environment in the repository "${repoName}".
+
+    ${analysisInstruction}
 
     ${techStackInstruction}
 
@@ -214,7 +232,7 @@ const generateWorkflowLogic = async ({
     3. "requiredSecrets": The array of sensitive secret objects. If none, return an empty array.
   `;
 
-    const systemInstruction = `You are an expert DevOps engineer specializing in GitHub Actions. Your sole purpose is to generate clean, correct, and complete YAML configuration files and associated non-sensitive variables and sensitive secrets. You ONLY respond with a single JSON object.`;
+    const systemInstruction = `You are an expert DevOps engineer specializing in GitHub Actions. Your sole purpose is to generate clean, correct, and complete YAML configuration files and associated non-sensitive variables and sensitive secrets. You ONLY respond with a single, raw JSON object. Do not include any introductory text, explanations, or markdown formatting like \`\`\`json. Your entire response must be parsable as JSON.`;
 
     const generationPromise = ai.models.generateContent({
       model: "gemini-2.5-flash",
@@ -292,7 +310,7 @@ const generateWorkflowLogic = async ({
 
     let parsed;
     try {
-        const responseText = geminiResponse.text;
+        let responseText = geminiResponse.text;
         
         if (typeof responseText !== 'string' || !responseText.trim()) {
             console.warn("Gemini API returned an empty or non-string response. This might be due to content filtering.");
@@ -300,11 +318,17 @@ const generateWorkflowLogic = async ({
             throw new Error("The AI model returned an empty or invalid response. This can happen if the prompt is flagged by safety filters.");
         }
 
+        // Robustly extract JSON from a string that might be wrapped in markdown or other text.
+        if (responseText.includes('{') && responseText.includes('}')) {
+             responseText = responseText.substring(responseText.indexOf('{'), responseText.lastIndexOf('}') + 1);
+        }
+
         parsed = JSON.parse(responseText);
 
     } catch (e) {
         console.error("Failed to process or parse Gemini response:", e);
-        console.error("Raw Gemini Response object:", JSON.stringify(geminiResponse, null, 2));
+        console.error("Raw Gemini Response text that failed parsing:", geminiResponse.text);
+        console.error("Full Gemini Response object:", JSON.stringify(geminiResponse, null, 2));
 
         throw new Error("The AI model's response could not be processed. It might have been malformed or blocked.");
     }
@@ -342,9 +366,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(405).json({ error: 'Method Not Allowed' });
   }
 
-  const { techStack, deploymentTarget, deploymentEnvironment, repoName, triggers } = req.body;
+  const { techStack, deploymentTarget, deploymentEnvironment, repoName, triggers, analysis } = req.body;
 
-  if (!techStack || !deploymentTarget || !deploymentEnvironment || !repoName || !triggers) {
+  if (!techStack || !deploymentTarget || !deploymentEnvironment || !repoName || !triggers || !analysis) {
     return res.status(400).json({ error: "Missing required parameters in the request body." });
   }
 
@@ -355,6 +379,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         deploymentEnvironment,
         repoName,
         triggers,
+        analysis,
     });
     return res.status(200).json(result);
   } catch (error) {

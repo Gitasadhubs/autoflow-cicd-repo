@@ -117,3 +117,17 @@ export interface RequiredSecret {
     name: string;
     description: string;
 }
+
+// Represents the result of analyzing a repository's code
+export interface RepoAnalysisResult {
+  packageManager: 'npm' | 'yarn' | 'pnpm' | 'unknown';
+  nodeVersion: string | null;
+  buildCommand: string | null;
+  testCommand: string | null;
+  installCommand: string;
+  runCommand: string;
+  lockFile: string | null;
+  framework: string | null;
+  // Send content of key files, not all files
+  keyFiles: { path: string, content: string }[]; 
+}

@@ -1,4 +1,4 @@
-import { TechStack, DeploymentTarget, DeploymentEnvironment, RequiredVariable, RequiredSecret } from '../types';
+import { TechStack, DeploymentTarget, DeploymentEnvironment, RequiredVariable, RequiredSecret, RepoAnalysisResult } from '../types';
 import { API_ENDPOINT_GENERATE_WORKFLOW } from '../constants';
 
 interface WorkflowGenerationResponse {
@@ -29,7 +29,8 @@ export const generateWorkflow = async (
   deploymentTarget: DeploymentTarget,
   deploymentEnvironment: DeploymentEnvironment,
   repoName: string,
-  triggers: AdvancedTriggers
+  triggers: AdvancedTriggers,
+  analysis: RepoAnalysisResult
 ): Promise<WorkflowGenerationResponse> => {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 30000); // 30-second timeout
@@ -45,7 +46,8 @@ export const generateWorkflow = async (
         deploymentTarget,
         deploymentEnvironment,
         repoName,
-        triggers
+        triggers,
+        analysis,
       }),
       signal: controller.signal, // Pass the signal to fetch
     });

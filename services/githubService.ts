@@ -1,4 +1,4 @@
-import { User, Repository, Deployment, DeploymentStatus, DeploymentStatusPayload, WorkflowRunStatus, RequiredVariable, RequiredSecret } from '../types';
+import { User, Repository, Deployment, DeploymentStatus, DeploymentStatusPayload, WorkflowRunStatus, RequiredVariable, RequiredSecret, RepoAnalysisResult } from '../types';
 import { API_ENDPOINT_ENCRYPT_SECRET } from '../constants';
 
 const GITHUB_API_BASE = 'https://api.github.com';
@@ -28,6 +28,23 @@ async function githubApiRequest<T>(endpoint: string, token: string, options: Req
   }
 
   return response.json();
+}
+
+// Helper to get file content, returns null if not found
+async function getFileContent(token: string, owner: string, repo: string, path: string): Promise<string | null> {
+    try {
+        const response = await githubApiRequest<{ content: string, encoding: string }>(`/repos/${owner}/${repo}/contents/${path}`, token);
+        if (response.encoding === 'base64') {
+            return decodeURIComponent(escape(atob(response.content)));
+        }
+        return response.content;
+    } catch (error) {
+        if (error instanceof Error && error.message.includes('404')) {
+            return null; // File not found, which is a valid scenario
+        }
+        console.error(`Error fetching file content for ${path}:`, error);
+        throw error; // Re-throw other errors
+    }
 }
 
 // Function to get the authenticated user's data
@@ -442,4 +459,89 @@ export const triggerRedeployment = async (
             body: JSON.stringify({ ref: branch }),
         }
     );
+};
+
+export const analyzeRepository = async (
+    token: string,
+    owner: string,
+    repo: string,
+    defaultBranch: string
+): Promise<RepoAnalysisResult> => {
+    const result: RepoAnalysisResult = {
+        packageManager: 'npm', // Default
+        nodeVersion: null,
+        buildCommand: 'npm run build', // Default
+        testCommand: 'npm test', // Default
+        installCommand: 'npm ci', // Default
+        runCommand: 'npm',
+        lockFile: null,
+        framework: null,
+        keyFiles: [],
+    };
+    
+    // 1. Get root file list to detect lock files
+    const rootContents = await githubApiRequest<{ name: string }[]>(`/repos/${owner}/${repo}/contents/?ref=${defaultBranch}`, token);
+    const rootFiles = rootContents.map(file => file.name);
+
+    if (rootFiles.includes('yarn.lock')) {
+        result.packageManager = 'yarn';
+        result.installCommand = 'yarn install --frozen-lockfile';
+        result.runCommand = 'yarn';
+        result.lockFile = 'yarn.lock';
+    } else if (rootFiles.includes('pnpm-lock.yaml')) {
+        result.packageManager = 'pnpm';
+        result.installCommand = 'pnpm install --frozen-lockfile';
+        result.runCommand = 'pnpm';
+        result.lockFile = 'pnpm-lock.yaml';
+    } else if (rootFiles.includes('package-lock.json')) {
+        result.packageManager = 'npm';
+        result.installCommand = 'npm ci';
+        result.runCommand = 'npm';
+        result.lockFile = 'package-lock.json';
+    }
+    
+    // 2. Fetch and analyze key files
+    const filesToAnalyze = [
+        'package.json',
+        '.nvmrc',
+        'vite.config.js', 'vite.config.ts',
+        'next.config.js',
+        'requirements.txt',
+    ];
+    
+    const filePromises = filesToAnalyze.map(path => getFileContent(token, owner, repo, path).then(content => ({ path, content })));
+    const fetchedFiles = await Promise.all(filePromises);
+
+    const validFiles = fetchedFiles.filter(f => f.content !== null) as { path: string; content: string }[];
+    result.keyFiles = validFiles;
+
+    const packageJsonContent = validFiles.find(f => f.path === 'package.json')?.content;
+    if (packageJsonContent) {
+        try {
+            const packageJson = JSON.parse(packageJsonContent);
+            if (packageJson.scripts?.build) {
+                result.buildCommand = `${result.runCommand} run build`;
+            }
+            if (packageJson.scripts?.test) {
+                result.testCommand = `${result.runCommand} test`;
+            }
+            if (packageJson.engines?.node) {
+                result.nodeVersion = packageJson.engines.node;
+            }
+            if (packageJson.dependencies?.next || packageJson.devDependencies?.next) {
+                result.framework = 'Next.js';
+            } else if (packageJson.dependencies?.vite || packageJson.devDependencies?.vite) {
+                result.framework = 'Vite';
+            }
+        } catch (e) {
+            console.error("Failed to parse package.json", e);
+        }
+    }
+    
+    const nvmrcContent = validFiles.find(f => f.path === '.nvmrc')?.content;
+    if (nvmrcContent) {
+        result.nodeVersion = nvmrcContent.trim();
+    }
+    
+    return result;
 };

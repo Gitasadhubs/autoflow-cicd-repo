@@ -1,7 +1,7 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { Repository, TechStack, DeploymentTarget, DeploymentEnvironment, RequiredVariable, RequiredSecret } from '../types';
 import { generateWorkflow, AdvancedTriggers } from '../services/geminiService';
-import { createWorkflowFile, setRepositoryVariable, setRepositorySecret, getWorkflowConfiguration } from '../services/githubService';
+import { createWorkflowFile, setRepositoryVariable, setRepositorySecret, getWorkflowConfiguration, analyzeRepository } from '../services/githubService';
 import { 
     ClipboardIcon, ClipboardCheckIcon, CodeBracketIcon, CheckCircleIcon, LockClosedIcon, 
     EyeIcon, EyeSlashIcon, LogoIcon, ArrowPathIcon, XCircleIcon, XCircleIcon as XIcon,
@@ -247,23 +247,26 @@ const PipelineConfigurator: React.FC<PipelineConfiguratorProps> = ({ repo, token
     setSecretValues({});
     setVisibleSecrets({});
     setGenerationError(null);
-    
-    const loadingMessages = [
-        "Contacting AI DevOps expert...",
-        "Analyzing project requirements...",
-        "Crafting the perfect YAML script...",
-        "Adding dependency caching for speed...",
-        "Defining required variables and secrets...",
-        "Finalizing the deployment strategy...",
-    ];
-    let messageIndex = 0;
-    setLoadingMessage(loadingMessages[messageIndex]);
-    loadingIntervalRef.current = window.setInterval(() => {
-        messageIndex = (messageIndex + 1) % loadingMessages.length;
-        setLoadingMessage(loadingMessages[messageIndex]);
-    }, 2500);
+    setLoadingMessage("Analyzing repository structure...");
 
     try {
+        const analysis = await analyzeRepository(token, repo.owner.login, repo.name, repo.default_branch);
+
+        const loadingMessages = [
+            "Contacting AI DevOps expert...",
+            "Reviewing repository analysis...",
+            "Crafting the perfect YAML script...",
+            "Adding dependency caching for speed...",
+            "Defining required variables and secrets...",
+            "Finalizing the deployment strategy...",
+        ];
+        let messageIndex = 0;
+        setLoadingMessage(loadingMessages[messageIndex]);
+        loadingIntervalRef.current = window.setInterval(() => {
+            messageIndex = (messageIndex + 1) % loadingMessages.length;
+            setLoadingMessage(loadingMessages[messageIndex]);
+        }, 2500);
+
         const triggersPayload: AdvancedTriggers = {
           push: {
             enabled: pushConfig.enabled,
@@ -281,7 +284,7 @@ const PipelineConfigurator: React.FC<PipelineConfiguratorProps> = ({ repo, token
           },
         };
 
-        const { yaml, variables, secrets } = await generateWorkflow(techStack, deploymentTarget, deploymentEnvironment, repo.name, triggersPayload);
+        const { yaml, variables, secrets } = await generateWorkflow(techStack, deploymentTarget, deploymentEnvironment, repo.name, triggersPayload, analysis);
         setGeneratedYaml(yaml);
         setRequiredVariables(variables);
         setRequiredSecrets(secrets);
@@ -299,7 +302,7 @@ const PipelineConfigurator: React.FC<PipelineConfiguratorProps> = ({ repo, token
             loadingIntervalRef.current = null;
         }
     }
-  }, [techStack, deploymentTarget, deploymentEnvironment, repo.name, pushConfig, pullRequestConfig, scheduleConfig]);
+  }, [techStack, deploymentTarget, deploymentEnvironment, repo, token, pushConfig, pullRequestConfig, scheduleConfig]);
   
   const handleVariableChange = (name: string, value: string) => {
     setVariableValues(prev => ({ ...prev, [name]: value }));
