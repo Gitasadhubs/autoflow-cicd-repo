@@ -291,9 +291,21 @@ const generateWorkflowLogic = async ({
         throw new Error("The AI model's response was incomplete or malformed.");
     }
 
+    // Clean up potential markdown code fences from the AI's response.
+    let cleanedYaml = parsed.workflow.trim();
+    if (cleanedYaml.startsWith('```')) {
+        const lines = cleanedYaml.split('\n');
+        // Remove the first line (e.g., ```yaml or ```)
+        lines.shift();
+        // Remove the last line if it's the closing fence
+        if (lines.length > 0 && lines[lines.length - 1].trim() === '```') {
+            lines.pop();
+        }
+        cleanedYaml = lines.join('\n');
+    }
 
     return {
-        yaml: parsed.workflow,
+        yaml: cleanedYaml.trim(),
         variables: parsed.requiredVariables || [],
         secrets: parsed.requiredSecrets || []
     };
