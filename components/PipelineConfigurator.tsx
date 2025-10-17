@@ -575,16 +575,25 @@ const PipelineConfigurator: React.FC<PipelineConfiguratorProps> = ({ repo, token
           
           {generatedYaml && (
             <div className="space-y-2">
-                <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300">Generated Workflow</h3>
-                <div className="relative bg-gray-100 dark:bg-gray-900 rounded-lg p-4 max-h-60 overflow-auto border border-gray-300 dark:border-gray-700">
+                <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 flex justify-between items-center">
+                    <span>Generated Workflow</span>
+                    <span className="text-xs font-normal text-gray-500 dark:text-gray-400">You can edit the YAML below before committing.</span>
+                </h3>
+                <div className="relative">
                     <button
                         onClick={copyToClipboard}
-                        className="absolute top-2 right-2 p-1.5 bg-gray-300 dark:bg-gray-700 hover:bg-gray-400 dark:hover:bg-gray-600 rounded-md text-gray-700 dark:text-gray-300"
+                        className="absolute top-2 right-2 z-10 p-1.5 bg-gray-300/80 dark:bg-gray-700/80 backdrop-blur-sm hover:bg-gray-400 dark:hover:bg-gray-600 rounded-md text-gray-700 dark:text-gray-300"
                         title="Copy to clipboard"
                     >
                         {isCopied ? <ClipboardCheckIcon className="h-5 w-5 text-green-500" /> : <ClipboardIcon className="h-5 w-5" />}
                     </button>
-                    <pre><code className="text-sm text-gray-800 dark:text-gray-200 font-mono">{generatedYaml}</code></pre>
+                    <textarea
+                        value={generatedYaml}
+                        onChange={(e) => setGeneratedYaml(e.target.value)}
+                        className="w-full h-60 p-4 font-mono text-sm text-gray-800 dark:text-gray-200 bg-gray-100 dark:bg-gray-900 rounded-lg resize-y border border-gray-300 dark:border-gray-700 focus:outline-none focus:ring-2 focus:ring-brand-primary focus:border-transparent"
+                        aria-label="Generated workflow YAML content"
+                        spellCheck="false"
+                    />
                 </div>
             </div>
           )}

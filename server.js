@@ -95,6 +95,15 @@ const generateWorkflowLogic = async ({
         `,
     };
 
+    const techStackInstruction = `
+    TECH STACK-SPECIFIC INSTRUCTIONS:
+    - For Node.js-based projects ("React (Vite)", "Vue.js", "Node.js (Express)"): Assume the project uses 'npm'. The workflow MUST run 'npm ci' to install dependencies.
+    - For frontend frameworks like "React (Vite)" or "Vue.js": These are typically built using 'npm run build' and produce static assets in a 'dist' or 'build' folder. This output folder is what gets deployed.
+    - For backend frameworks like "Node.js (Express)": This is a server application. The entire project (excluding node_modules) is what gets deployed, not just a build artifact.
+    - For "Python (Flask/Django)" projects: Assume dependencies are managed with a 'requirements.txt' file and should be installed using 'pip'.
+    - For "Static HTML/JS" projects: These typically do not have a build step, and the entire repository content is deployed.
+    `;
+
     const detailedInstruction = targetSpecificInstructions[deploymentTarget] || '';
 
     const branch = deploymentEnvironment === 'Production' ? 'main' : 'staging';
@@ -158,6 +167,8 @@ const generateWorkflowLogic = async ({
     Generate a complete, 100% accurate, and production-ready GitHub Actions workflow YAML file to build and deploy a "${techStack}" application to "${deploymentTarget}".
     This workflow is for the "${deploymentEnvironment}" environment in the repository "${repoName}".
 
+    ${techStackInstruction}
+
     ${detailedInstruction}
 
     CRITICAL REQUIREMENTS FOR THE YAML:
@@ -168,15 +179,13 @@ const generateWorkflowLogic = async ({
     4. YAML indentation MUST be correct (using 2 spaces). This is a critical point of failure.
     5. You MUST use the latest stable versions of official GitHub Actions (e.g., actions/checkout@v4, actions/setup-node@v4, actions/setup-python@v5).
     6. For projects with dependencies (like Node.js, React, Python), include a step to cache dependencies to speed up subsequent builds. Use a reliable caching key (e.g., based on the lock file).
-    7. Ensure all necessary environment variables are set for each step, especially for deployment steps that require tokens or IDs.
-    8. If the workflow has build and deploy steps, ensure the deploy step correctly uses the artifacts from the build step.
+    7. It MUST include a "Test" step that runs the project's test suite (e.g., using 'npm test' or 'pytest'). This step MUST occur AFTER installing dependencies and building (if applicable), but BEFORE the "Deploy" step. If the test step fails, the workflow MUST fail and not proceed to deployment.
+    8. Ensure all necessary environment variables are set for each step, especially for deployment steps that require tokens or IDs.
+    9. If the workflow has build and deploy steps, ensure the deploy step correctly uses the artifacts from the build step.
 
     Also, identify ALL configuration values that this workflow requires to function. Separate them into two lists:
     1. Non-sensitive values that can be exposed as GitHub Actions Variables. For example: Node.js version, build directory, package manager.
     2. Sensitive values that MUST be stored as encrypted GitHub Actions Secrets. For example: API tokens (like VERCEL_TOKEN, FIREBASE_TOKEN), private keys, or passwords.
-
-    List the non-sensitive variables as an array of objects, where each object has a 'name', a 'description', and an optional 'defaultValue'.
-    List the sensitive secrets as an array of objects, where each object has a 'name' and a 'description'. Do NOT ask for the secret's value.
 
     Return a single, valid JSON object with three keys:
     1. "workflow": A string containing the complete YAML code.
