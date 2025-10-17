@@ -1,4 +1,4 @@
-import { User, Repository, Deployment, DeploymentStatus, DeploymentStatusPayload, WorkflowRunStatus } from '../types';
+import { User, Repository, Deployment, DeploymentStatus, DeploymentStatusPayload, WorkflowRunStatus, RequiredVariable, RequiredSecret } from '../types';
 import { API_ENDPOINT_ENCRYPT_SECRET } from '../constants';
 
 const GITHUB_API_BASE = 'https://api.github.com';
@@ -357,6 +357,56 @@ interface GitHubWorkflow {
   path: string;
   state: string;
 }
+
+// Interfaces for fetching existing variables and secrets
+interface RepoVariable {
+    name: string;
+    value: string;
+}
+interface RepoSecret {
+    name: string;
+}
+
+export const getWorkflowConfiguration = async (token: string, owner: string, repo: string): Promise<{
+    yaml: string;
+    path: string;
+    variables: (RequiredVariable & { value: string })[];
+    secrets: RequiredSecret[];
+}> => {
+    // 1. Find the AutoFlow workflow file
+    const { workflows } = await githubApiRequest<{ workflows: GitHubWorkflow[] }>(`/repos/${owner}/${repo}/actions/workflows`, token);
+    const autoFlowWorkflow = workflows.find(wf => wf.path.includes('autoflow'));
+
+    if (!autoFlowWorkflow) {
+        throw new Error("No AutoFlow-managed workflow found in this repository.");
+    }
+    const path = autoFlowWorkflow.path;
+
+    // 2. Get the content of the workflow file
+    const fileContentResponse = await githubApiRequest<{ content: string, encoding: string }>(`/repos/${owner}/${repo}/contents/${path}`, token);
+    const yaml = fileContentResponse.encoding === 'base64'
+        ? decodeURIComponent(escape(atob(fileContentResponse.content)))
+        : fileContentResponse.content;
+
+    // 3. Get repository variables
+    const { variables: repoVariables } = await githubApiRequest<{ variables: RepoVariable[] }>(`/repos/${owner}/${repo}/actions/variables?per_page=100`, token);
+    const variables = repoVariables.map(v => ({
+        name: v.name,
+        value: v.value,
+        description: `Repository variable.`,
+        defaultValue: v.value,
+    }));
+
+    // 4. Get repository secrets
+    const { secrets: repoSecrets } = await githubApiRequest<{ secrets: RepoSecret[] }>(`/repos/${owner}/${repo}/actions/secrets?per_page=100`, token);
+    const secrets = repoSecrets.map(s => ({
+        name: s.name,
+        description: `Repository secret. Provide a new value to update it, or leave blank to keep it unchanged.`,
+    }));
+
+    return { yaml, path, variables, secrets };
+};
+
 
 // Function to trigger a new deployment via workflow_dispatch
 export const triggerRedeployment = async (

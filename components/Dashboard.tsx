@@ -6,7 +6,8 @@ import BuddyBot from './DocsChat';
 import Documentation from './Documentation';
 import { 
     CheckCircleIcon, XCircleIcon, ArrowPathIcon, CodeBracketIcon, LockClosedIcon, 
-    StopCircleIcon, LogoIcon, QuestionMarkCircleIcon, ChatBubbleOvalLeftIcon, SunIcon, MoonIcon, MagnifyingGlassIcon, BranchIcon
+    StopCircleIcon, LogoIcon, QuestionMarkCircleIcon, ChatBubbleOvalLeftIcon, SunIcon, MoonIcon, MagnifyingGlassIcon, BranchIcon,
+    PencilIcon
 } from './icons';
 import { getRepos, getDeploymentsForRepo, hasWorkflows, getLatestWorkflowRun, rerunWorkflow, rerunFailedJobs, triggerRedeployment, cancelWorkflowRun } from '../services/githubService';
 
@@ -118,11 +119,12 @@ const WorkflowStatusBadge: React.FC<{ status: WorkflowRunStatus; url: string }> 
 const RepositoryListItem: React.FC<{ 
     repo: Repository; 
     onConfigure: (repo: Repository) => void;
+    onEdit: (repo: Repository) => void;
     onSelect: (repo: Repository) => void;
     isSelected: boolean;
     onRerun: (repo: Repository) => void;
     isRerunning: boolean;
-}> = ({ repo, onConfigure, onSelect, isSelected, onRerun, isRerunning }) => {
+}> = ({ repo, onConfigure, onEdit, onSelect, isSelected, onRerun, isRerunning }) => {
     
     const canRerun = repo.latestRunStatus && [
         WorkflowRunStatus.Failure, 
@@ -175,6 +177,16 @@ const RepositoryListItem: React.FC<{
                                     <ArrowPathIcon className={`w-4 h-4 ${isRerunning ? 'animate-spin' : ''}`} />
                                 </button>
                             )}
+                            <button 
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    onEdit(repo);
+                                }}
+                                title="Edit workflow"
+                                className="p-2 bg-gray-300 dark:bg-gray-600 hover:bg-gray-400 dark:hover:bg-gray-500 text-gray-800 dark:text-white rounded-full transition duration-300"
+                            >
+                                <PencilIcon className="w-4 h-4" />
+                            </button>
                         </>
                     ) : (
                         <button 
@@ -262,7 +274,8 @@ const Dashboard: React.FC<DashboardProps> = ({ user, token, onLogout, theme, onT
   const [loadingRepos, setLoadingRepos] = useState(true);
   const [loadingDeployments, setLoadingDeployments] = useState(false);
   
-  const [configRepo, setConfigRepo] = useState<Repository | null>(null); // Repo for pipeline configurator modal
+  const [configRepo, setConfigRepo] = useState<Repository | null>(null);
+  const [configMode, setConfigMode] = useState<'create' | 'edit'>('create');
   const [selectedRepo, setSelectedRepo] = useState<Repository | null>(null); // Repo for viewing deployments
   const [viewingLogs, setViewingLogs] = useState<Deployment | null>(null);
   const [showDocs, setShowDocs] = useState<boolean>(false);
@@ -468,6 +481,16 @@ const Dashboard: React.FC<DashboardProps> = ({ user, token, onLogout, theme, onT
     }
   }, [fetchDeployments]);
 
+  const handleConfigure = (repo: Repository) => {
+    setConfigRepo(repo);
+    setConfigMode('create');
+  };
+  
+  const handleEdit = (repo: Repository) => {
+    setConfigRepo(repo);
+    setConfigMode('edit');
+  };
+
   const filteredRepositories = repositories.filter(repo =>
     repo.full_name.toLowerCase().includes(searchQuery.toLowerCase())
   );
@@ -543,7 +566,8 @@ const Dashboard: React.FC<DashboardProps> = ({ user, token, onLogout, theme, onT
                   <RepositoryListItem 
                     key={repo.id} 
                     repo={repo} 
-                    onConfigure={setConfigRepo}
+                    onConfigure={handleConfigure}
+                    onEdit={handleEdit}
                     onSelect={handleRepoSelect}
                     isSelected={selectedRepo?.id === repo.id}
                     onRerun={handleRerunWorkflow}
@@ -652,6 +676,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, token, onLogout, theme, onT
         <PipelineConfigurator 
             repo={configRepo}
             token={token}
+            mode={configMode}
             onClose={() => setConfigRepo(null)} 
             onPipelineConfigured={handlePipelineConfigured}
         />
