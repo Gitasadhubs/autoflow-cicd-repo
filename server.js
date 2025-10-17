@@ -73,6 +73,26 @@ const generateWorkflowLogic = async ({
         - REQUIRED SECRETS: RAILWAY_TOKEN.
         - REQUIRED VARIABLES: RAILWAY_PROJECT_ID.
         `,
+        'Heroku': `
+        INSTRUCTIONS FOR HEROKU DEPLOYMENT:
+        - The deployment MUST be done using the 'akhileshns/heroku-deploy@v3.12.12' action. This is the preferred method.
+        - The action requires a 'HEROKU_API_KEY' which MUST be a sensitive secret.
+        - The action requires a 'HEROKU_APP_NAME' which MUST be a variable. This is the name of the app in the Heroku dashboard.
+        - The action also requires 'HEROKU_EMAIL', the email address associated with the Heroku account, which MUST be a variable.
+        - REQUIRED SECRETS: HEROKU_API_KEY.
+        - REQUIRED VARIABLES: HEROKU_APP_NAME, HEROKU_EMAIL.
+        `,
+        'AWS Elastic Beanstalk': `
+        INSTRUCTIONS FOR AWS ELASTIC BEANSTALK DEPLOYMENT:
+        - The deployment MUST be done using the 'einaregilsson/beanstalk-deploy@v21' action.
+        - Authentication requires 'AWS_ACCESS_KEY_ID' and 'AWS_SECRET_ACCESS_KEY', which MUST be sensitive secrets.
+        - The action requires an 'aws_region' variable (e.g., 'us-east-1'). Define this as a variable named 'AWS_REGION'.
+        - The action requires an 'application_name' variable. Define this as a variable named 'EB_APPLICATION_NAME'.
+        - The action requires an 'environment_name' variable. Define this as a variable named 'EB_ENVIRONMENT_NAME'.
+        - The workflow MUST have a build step that creates a zip file of the application source code. The name of this zip file (e.g., 'deploy.zip') must be passed to the 'zip_file' input of the deployment action.
+        - REQUIRED SECRETS: AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY.
+        - REQUIRED VARIABLES: AWS_REGION, EB_APPLICATION_NAME, EB_ENVIRONMENT_NAME.
+        `,
     };
 
     const detailedInstruction = targetSpecificInstructions[deploymentTarget] || '';
@@ -146,8 +166,8 @@ const generateWorkflowLogic = async ({
     ${triggerBlockInstruction}
     3. The jobs MUST run on 'ubuntu-latest'.
     4. YAML indentation MUST be correct (using 2 spaces). This is a critical point of failure.
-    5. You MUST use the latest stable versions of official GitHub Actions (e.g., actions/checkout@v4, actions/setup-node@v4).
-    6. For projects with dependencies (like Node.js, React), include a step to cache dependencies to speed up subsequent builds. Use a reliable caching key (e.g., based on the lock file).
+    5. You MUST use the latest stable versions of official GitHub Actions (e.g., actions/checkout@v4, actions/setup-node@v4, actions/setup-python@v5).
+    6. For projects with dependencies (like Node.js, React, Python), include a step to cache dependencies to speed up subsequent builds. Use a reliable caching key (e.g., based on the lock file).
     7. Ensure all necessary environment variables are set for each step, especially for deployment steps that require tokens or IDs.
     8. If the workflow has build and deploy steps, ensure the deploy step correctly uses the artifacts from the build step.
 

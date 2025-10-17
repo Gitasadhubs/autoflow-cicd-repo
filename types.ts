@@ -87,6 +87,7 @@ export enum TechStack {
   NextJS = 'Next.js',
   NodeJS = 'Node.js (Express)',
   Vue = 'Vue.js',
+  Python = 'Python (Flask/Django)',
   Static = 'Static HTML/JS'
 }
 
@@ -95,6 +96,8 @@ export enum DeploymentTarget {
   Firebase = 'Firebase Hosting',
   GitHubPages = 'GitHub Pages',
   Railway = 'Railway',
+  Heroku = 'Heroku',
+  AWSElasticBeanstalk = 'AWS Elastic Beanstalk',
 }
 
 export enum DeploymentEnvironment {

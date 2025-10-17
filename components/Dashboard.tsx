@@ -6,7 +6,7 @@ import BuddyBot from './DocsChat';
 import Documentation from './Documentation';
 import { 
     CheckCircleIcon, XCircleIcon, ArrowPathIcon, CodeBracketIcon, LockClosedIcon, 
-    StopCircleIcon, LogoIcon, QuestionMarkCircleIcon, ChatBubbleOvalLeftIcon, SunIcon, MoonIcon, MagnifyingGlassIcon
+    StopCircleIcon, LogoIcon, QuestionMarkCircleIcon, ChatBubbleOvalLeftIcon, SunIcon, MoonIcon, MagnifyingGlassIcon, BranchIcon
 } from './icons';
 import { getRepos, getDeploymentsForRepo, hasWorkflows, getLatestWorkflowRun, rerunWorkflow, rerunFailedJobs, triggerRedeployment, cancelWorkflowRun } from '../services/githubService';
 
@@ -144,6 +144,10 @@ const RepositoryListItem: React.FC<{
                     <p className="text-sm text-gray-600 dark:text-gray-400 mt-1 truncate">{repo.description || 'No description available.'}</p>
                     <div className="flex items-center space-x-4 mt-2 text-xs text-gray-500 dark:text-gray-400">
                         {repo.language && <span className="flex items-center"><CodeBracketIcon className="w-3 h-3 mr-1" />{repo.language}</span>}
+                        <span className="flex items-center" title="Default branch">
+                            <BranchIcon className="w-3 h-3 mr-1" />
+                            {repo.default_branch}
+                        </span>
                         <span>Updated {timeSince(repo.updated_at)}</span>
                     </div>
                 </div>
@@ -482,7 +486,18 @@ const Dashboard: React.FC<DashboardProps> = ({ user, token, onLogout, theme, onT
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           
           <div className="space-y-6">
-            <h2 className="text-3xl font-bold text-gray-900 dark:text-gray-100">Your Repositories</h2>
+            <div className="flex justify-between items-center">
+              <h2 className="text-3xl font-bold text-gray-900 dark:text-gray-100">Your Repositories</h2>
+              <button
+                onClick={() => fetchRepos()}
+                disabled={loadingRepos}
+                className="flex items-center bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-800 dark:text-white font-semibold py-2 px-4 rounded-lg transition duration-300 disabled:opacity-50 disabled:cursor-wait"
+                title="Refresh repository list"
+              >
+                <ArrowPathIcon className={`w-5 h-5 mr-2 ${loadingRepos ? 'animate-spin' : ''}`} />
+                Refresh
+              </button>
+            </div>
             
             <div className="relative">
               <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">

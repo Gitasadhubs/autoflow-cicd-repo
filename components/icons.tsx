@@ -18,6 +18,24 @@ export const FirebaseIcon: React.FC<{ className?: string }> = ({ className }) =>
     </svg>
 );
 
+export const RailwayIcon: React.FC<{ className?: string }> = ({ className }) => (
+    <svg fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" className={className}>
+        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zM9.5 16H8V8h1.5v2H11V8h1.5v3H11v2h1.5v3H11v-2H9.5v2zm4-2h1.5v2H15V8h-1.5v6z"/>
+    </svg>
+);
+
+export const HerokuIcon: React.FC<{ className?: string }> = ({ className }) => (
+    <svg fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" className={className}>
+        <path d="M20.13 4.22L13.5.03v7.33l-3-1.52V.03L4.25 3.82v16.36l6.25 3.79V11.5l3 1.52v10.94l6.63-3.79V4.22zM8.75 16.5v-6l-4.5-2.26v6l4.5 2.26zm6-8.25l3 1.5v3l-3-1.5v-3zM19.5 18.76L15 21.02v-6l4.5-2.26v6z" />
+    </svg>
+);
+
+export const AWSIcon: React.FC<{ className?: string }> = ({ className }) => (
+    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={className}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 15a4.5 4.5 0 004.5 4.5H18a3.75 3.75 0 001.332-7.257 3 3 0 00-3.758-3.848 5.25 5.25 0 00-10.233 2.33A4.5 4.5 0 002.25 15z" />
+    </svg>
+);
+
 export const LogoIcon: React.FC<{ className?: string }> = ({ className }) => (
     <svg className={className} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
         <defs>
@@ -129,6 +147,12 @@ export const MoonIcon: React.FC<{ className?: string }> = ({ className }) => (
     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={className}>
         <path strokeLinecap="round" strokeLinejoin="round" d="M21.752 15.002A9.718 9.718 0 0118 15.75c-5.385 0-9.75-4.365-9.75-9.75 0-1.33.266-2.597.748-3.752A9.753 9.753 0 003 11.25C3 16.635 7.365 21 12.75 21a9.753 9.753 0 009.002-5.998z" />
     </svg>
+);
+
+export const BranchIcon: React.FC<{ className?: string }> = ({ className }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={className}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18a3 3 0 100-6 3 3 0 000 6zM6 6v6m0 0a3 3 0 103 3h6a3 3 0 100-6H9a3 3 0 10-3 3z" />
+  </svg>
 );
 
 export const MagnifyingGlassIcon: React.FC<{ className?: string }> = ({ className }) => (

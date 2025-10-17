@@ -4,7 +4,8 @@ import { generateWorkflow, AdvancedTriggers } from '../services/geminiService';
 import { createWorkflowFile, setRepositoryVariable, setRepositorySecret } from '../services/githubService';
 import { 
     ClipboardIcon, ClipboardCheckIcon, CodeBracketIcon, CheckCircleIcon, LockClosedIcon, 
-    EyeIcon, EyeSlashIcon, LogoIcon, ArrowPathIcon, XCircleIcon, XCircleIcon as XIcon
+    EyeIcon, EyeSlashIcon, LogoIcon, ArrowPathIcon, XCircleIcon, XCircleIcon as XIcon,
+    VercelIcon, GitHubIcon, RailwayIcon, HerokuIcon, AWSIcon
 } from './icons';
 
 interface PipelineConfiguratorProps {
@@ -32,6 +33,24 @@ interface TriggerScheduleConfig {
     enabled: boolean;
     crons: string[];
 }
+
+interface WorkflowTemplate {
+    id: string;
+    name: string;
+    description: string;
+    techStack: TechStack;
+    deploymentTarget: DeploymentTarget;
+    icon: React.FC<{ className?: string }>;
+}
+
+const templates: WorkflowTemplate[] = [
+    { id: 'react-vercel', name: 'React to Vercel', description: 'Deploy a Vite-based React app to Vercel.', techStack: TechStack.React, deploymentTarget: DeploymentTarget.Vercel, icon: VercelIcon },
+    { id: 'static-ghpages', name: 'Static to GitHub Pages', description: 'Host a static HTML/JS site from your repo.', techStack: TechStack.Static, deploymentTarget: DeploymentTarget.GitHubPages, icon: GitHubIcon },
+    { id: 'node-railway', name: 'Node.js to Railway', description: 'Deploy a Node.js Express server to Railway.', techStack: TechStack.NodeJS, deploymentTarget: DeploymentTarget.Railway, icon: RailwayIcon },
+    { id: 'python-heroku', name: 'Python to Heroku', description: 'Deploy a Python (Flask/Django) app to Heroku.', techStack: TechStack.Python, deploymentTarget: DeploymentTarget.Heroku, icon: HerokuIcon },
+    { id: 'node-aws-eb', name: 'Node.js to AWS EB', description: 'Deploy a Node.js app to AWS Elastic Beanstalk.', techStack: TechStack.NodeJS, deploymentTarget: DeploymentTarget.AWSElasticBeanstalk, icon: AWSIcon },
+    { id: 'custom', name: 'Custom Pipeline', description: 'Manually configure stack and deployment target.', techStack: TechStack.React, deploymentTarget: DeploymentTarget.Vercel, icon: CodeBracketIcon } // Dummy values for custom
+];
 
 
 const initialCommitProgress: CommitProgress = {
@@ -88,8 +107,9 @@ const ProgressItem: React.FC<{
 
 
 const PipelineConfigurator: React.FC<PipelineConfiguratorProps> = ({ repo, token, onClose, onPipelineConfigured }) => {
-  const [techStack, setTechStack] = useState<TechStack>(TechStack.React);
-  const [deploymentTarget, setDeploymentTarget] = useState<DeploymentTarget>(DeploymentTarget.Vercel);
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string>(templates[0].id);
+  const [techStack, setTechStack] = useState<TechStack>(templates[0].techStack);
+  const [deploymentTarget, setDeploymentTarget] = useState<DeploymentTarget>(templates[0].deploymentTarget);
   const [deploymentEnvironment, setDeploymentEnvironment] = useState<DeploymentEnvironment>(DeploymentEnvironment.Production);
   
   // State for advanced trigger configuration
@@ -124,6 +144,28 @@ const PipelineConfigurator: React.FC<PipelineConfiguratorProps> = ({ repo, token
     setVariableValues(initialValues);
   }, [requiredVariables]);
   
+    useEffect(() => {
+        // Find the selected template
+        const selected = templates.find(t => t.id === selectedTemplateId);
+        
+        if (selected && selected.id !== 'custom') {
+            setTechStack(selected.techStack);
+            setDeploymentTarget(selected.deploymentTarget);
+        }
+
+        // Reset generated content when template changes to force regeneration
+        setGeneratedYaml('');
+        setRequiredVariables([]);
+        setRequiredSecrets([]);
+        setVariableValues({});
+        setSecretValues({});
+        setGenerationError(null);
+        setIsCommitting(false);
+        setCommitProgress(initialCommitProgress);
+
+    }, [selectedTemplateId]);
+
+
   // This effect checks if all setup steps are successfully completed.
   useEffect(() => {
     if (!isCommitting) return;
@@ -328,31 +370,57 @@ const PipelineConfigurator: React.FC<PipelineConfiguratorProps> = ({ repo, token
         
         <div className="p-6 space-y-6 max-h-[70vh] overflow-y-auto">
           <fieldset className="p-4 border border-gray-300 dark:border-gray-700 rounded-lg">
-            <legend className="text-sm font-medium text-gray-700 dark:text-gray-300 px-2">Build & Deploy Settings</legend>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2">
-                <div>
-                <label htmlFor="tech-stack" className="block text-sm font-medium text-gray-800 dark:text-gray-300 mb-1">Tech Stack</label>
-                <select 
-                    id="tech-stack"
-                    value={techStack}
-                    onChange={(e) => setTechStack(e.target.value as TechStack)}
-                    className="w-full bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-200 text-sm rounded-lg focus:ring-brand-primary focus:border-brand-primary block p-2.5 placeholder-gray-500 dark:placeholder-gray-400"
-                >
-                    {Object.values(TechStack).map(ts => <option key={ts} value={ts}>{ts}</option>)}
-                </select>
-                </div>
-                <div>
-                <label htmlFor="deployment-target" className="block text-sm font-medium text-gray-800 dark:text-gray-300 mb-1">Deployment Target</label>
-                <select 
-                    id="deployment-target"
-                    value={deploymentTarget}
-                    onChange={(e) => setDeploymentTarget(e.target.value as DeploymentTarget)}
-                    className="w-full bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-200 text-sm rounded-lg focus:ring-brand-primary focus:border-brand-primary block p-2.5 placeholder-gray-500 dark:placeholder-gray-400"
-                >
-                    {Object.values(DeploymentTarget).map(dt => <option key={dt} value={dt}>{dt}</option>)}
-                </select>
-                </div>
-                <div>
+            <legend className="text-sm font-medium text-gray-700 dark:text-gray-300 px-2">Choose a Template</legend>
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-3 pt-2">
+                {templates.map(template => (
+                    <button
+                        key={template.id}
+                        onClick={() => setSelectedTemplateId(template.id)}
+                        className={`p-3 text-left rounded-lg transition-all duration-200 flex flex-col justify-between h-full ${selectedTemplateId === template.id 
+                            ? 'ring-2 ring-brand-primary bg-brand-primary/10 dark:bg-brand-primary/20' 
+                            : 'ring-1 ring-gray-300 dark:ring-gray-600 hover:ring-brand-secondary dark:hover:ring-brand-secondary bg-gray-50/50 dark:bg-gray-800/50'
+                        }`}
+                    >
+                        <div>
+                            <div className="flex items-center space-x-2">
+                                <template.icon className="w-5 h-5 text-gray-600 dark:text-gray-300" />
+                                <span className="font-semibold text-sm text-gray-800 dark:text-gray-200">{template.name}</span>
+                            </div>
+                            <span className="text-xs text-gray-500 dark:text-gray-400 mt-1 block">{template.description}</span>
+                        </div>
+                    </button>
+                ))}
+            </div>
+          </fieldset>
+          
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {selectedTemplateId === 'custom' && (
+                <>
+                    <div>
+                    <label htmlFor="tech-stack" className="block text-sm font-medium text-gray-800 dark:text-gray-300 mb-1">Tech Stack</label>
+                    <select 
+                        id="tech-stack"
+                        value={techStack}
+                        onChange={(e) => setTechStack(e.target.value as TechStack)}
+                        className="w-full bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-200 text-sm rounded-lg focus:ring-brand-primary focus:border-brand-primary block p-2.5 placeholder-gray-500 dark:placeholder-gray-400"
+                    >
+                        {Object.values(TechStack).map(ts => <option key={ts} value={ts}>{ts}</option>)}
+                    </select>
+                    </div>
+                    <div>
+                    <label htmlFor="deployment-target" className="block text-sm font-medium text-gray-800 dark:text-gray-300 mb-1">Deployment Target</label>
+                    <select 
+                        id="deployment-target"
+                        value={deploymentTarget}
+                        onChange={(e) => setDeploymentTarget(e.target.value as DeploymentTarget)}
+                        className="w-full bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-200 text-sm rounded-lg focus:ring-brand-primary focus:border-brand-primary block p-2.5 placeholder-gray-500 dark:placeholder-gray-400"
+                    >
+                        {Object.values(DeploymentTarget).map(dt => <option key={dt} value={dt}>{dt}</option>)}
+                    </select>
+                    </div>
+                </>
+              )}
+              <div className={selectedTemplateId === 'custom' ? '' : 'col-start-1'}>
                 <label htmlFor="deployment-environment" className="block text-sm font-medium text-gray-800 dark:text-gray-300 mb-1">Environment</label>
                 <select 
                     id="deployment-environment"
@@ -362,9 +430,9 @@ const PipelineConfigurator: React.FC<PipelineConfiguratorProps> = ({ repo, token
                 >
                     {Object.values(DeploymentEnvironment).map(de => <option key={de} value={de}>{de}</option>)}
                 </select>
-                </div>
-            </div>
-          </fieldset>
+              </div>
+          </div>
+
 
            <fieldset className="p-4 border border-gray-300 dark:border-gray-700 rounded-lg">
             <legend className="text-sm font-medium text-gray-700 dark:text-gray-300 px-2">Workflow Triggers</legend>
