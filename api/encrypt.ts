@@ -1,6 +1,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-// FIX: Switched to a namespace import (`import * as ...`) to fix type resolution for `libsodium.utils`.
-import * as libsodium from 'libsodium-wrappers';
+// FIX: Switched to a default import to correctly resolve the libsodium module structure in the Vercel environment.
+// FIX: Import `utils` as a named export to resolve type errors.
+import libsodium, { utils } from 'libsodium-wrappers';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (req.method !== 'POST') {
@@ -18,14 +19,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         await libsodium.ready;
 
         // Convert the secret and key to Uint8Array using libsodium.utils
-        const secretBytes = libsodium.utils.decode_utf8(valueToEncrypt);
-        const publicKeyBytes = libsodium.utils.decode_base64(publicKey);
+        // FIX: Use named `utils` import as `libsodium.utils` is not available in the type definition.
+        const secretBytes = utils.decode_utf8(valueToEncrypt);
+        // FIX: Use named `utils` import as `libsodium.utils` is not available in the type definition.
+        const publicKeyBytes = utils.decode_base64(publicKey);
 
         // Encrypt the secret using libsodium
         const encryptedBytes = libsodium.crypto_box_seal(secretBytes, publicKeyBytes);
 
         // Convert the encrypted Uint8Array to a base64 string
-        const encryptedValue = libsodium.utils.encode_base64(encryptedBytes);
+        // FIX: Use named `utils` import as `libsodium.utils` is not available in the type definition.
+        const encryptedValue = utils.encode_base64(encryptedBytes);
 
         return res.status(200).json({ encryptedValue });
     } catch (error) {
