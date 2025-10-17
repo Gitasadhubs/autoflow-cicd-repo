@@ -648,7 +648,10 @@ const Dashboard: React.FC<DashboardProps> = ({ user, token, onLogout, theme, onT
         <Documentation onClose={() => setShowDocs(false)} />
       )}
       {showBuddyBot && (
-        <BuddyBot onClose={() => setShowBuddyBot(false)} />
+        <BuddyBot 
+            onClose={() => setShowBuddyBot(false)}
+            repoContext={selectedRepo}
+        />
       )}
     </div>
   );

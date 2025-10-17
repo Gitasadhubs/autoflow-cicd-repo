@@ -5,10 +5,24 @@ export const config = {
   runtime: 'edge',
 };
 
+// Minimal type definition to avoid bundling issues with the edge runtime.
+interface RepoContext {
+    name: string;
+    full_name: string;
+    description: string | null;
+    language: string | null;
+    has_workflows: boolean;
+}
+
 // Inlined from _lib/docs-chat-config.ts to resolve Vercel Edge Function build error
 // regarding module resolution in the edge runtime.
-const getSystemInstruction = () => {
+const getSystemInstruction = (repoContext: RepoContext | null) => {
+  const contextInstruction = repoContext
+    ? `The user is currently viewing the '${repoContext.full_name}' repository. It is a ${repoContext.language || 'not specified language'} project. It ${repoContext.has_workflows ? 'HAS' : 'DOES NOT HAVE'} an AutoFlow pipeline configured. Tailor your answers to this context.`
+    : '';
+  
   return `You are "Buddy Bot", a friendly and helpful AI assistant for AutoFlow. Your knowledge is strictly limited to the AutoFlow application and its features. Do not answer questions about any other topic.
+${contextInstruction}
 
 AutoFlow is a web platform that helps developers automate their code deployment using GitHub Actions. It simplifies creating CI/CD pipelines.
 
@@ -59,7 +73,7 @@ export default async function handler(req: Request) {
       });
     }
 
-    const { messages } = await req.json();
+    const { messages, repoContext } = await req.json();
     if (!messages || !Array.isArray(messages) || messages.length === 0) {
       return new Response(JSON.stringify({ error: 'Invalid "messages" property in request body.' }), {
         status: 400,
@@ -80,7 +94,7 @@ export default async function handler(req: Request) {
     // Create a new chat session with the system instruction and history
     const chat = ai.chats.create({
         model: 'gemini-2.5-flash',
-        config: { systemInstruction: getSystemInstruction() },
+        config: { systemInstruction: getSystemInstruction(repoContext) },
         history: history,
     });
     

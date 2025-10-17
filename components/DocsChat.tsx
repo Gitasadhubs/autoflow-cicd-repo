@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { LogoIcon } from './icons';
 import { API_ENDPOINT_BUDDY_BOT_CHAT } from '../constants';
+import { Repository } from '../types';
 
 interface Message {
   role: 'user' | 'assistant';
@@ -9,6 +10,7 @@ interface Message {
 
 interface BuddyBotProps {
   onClose: () => void;
+  repoContext: Repository | null;
 }
 
 const Code: React.FC<{ children: React.ReactNode }> = ({ children }) => (
@@ -31,15 +33,20 @@ const MessageContent: React.FC<{ content: string }> = ({ content }) => {
 };
 
 
-const BuddyBot: React.FC<BuddyBotProps> = ({ onClose }) => {
-    const [messages, setMessages] = useState<Message[]>([
-        { role: 'assistant', content: "Hi! I'm Buddy Bot, your AI assistant for AutoFlow. How can I help you get started?" }
-    ]);
+const BuddyBot: React.FC<BuddyBotProps> = ({ onClose, repoContext }) => {
+    const [messages, setMessages] = useState<Message[]>([]);
     const [input, setInput] = useState('');
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
     const chatContainerRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        const initialMessage = repoContext
+            ? `Hi! I'm Buddy Bot. I see you're looking at the \`${repoContext.full_name}\` repository. How can I help you with it today?`
+            : "Hi! I'm Buddy Bot, your AI assistant for AutoFlow. How can I help you get started?";
+        setMessages([{ role: 'assistant', content: initialMessage }]);
+    }, [repoContext]);
 
     useEffect(() => {
         if (chatContainerRef.current) {
@@ -66,7 +73,10 @@ const BuddyBot: React.FC<BuddyBotProps> = ({ onClose }) => {
             const response = await fetch(API_ENDPOINT_BUDDY_BOT_CHAT, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ messages: newMessages }),
+                body: JSON.stringify({
+                    messages: newMessages,
+                    repoContext: repoContext, // Pass context to the API
+                }),
             });
 
             if (!response.ok || !response.body) {
@@ -103,7 +113,13 @@ const BuddyBot: React.FC<BuddyBotProps> = ({ onClose }) => {
         }
     };
     
-    const suggestedPrompts = [
+    const suggestedPrompts = repoContext 
+    ? [
+        "How do I deploy this project?",
+        `What secrets does ${repoContext.name} need?`,
+        "Explain the latest deployment."
+    ]
+    : [
       "How do I generate a token?",
       "Why aren't my repos showing up?",
       "What secrets does Vercel need?",

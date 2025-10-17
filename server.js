@@ -242,8 +242,13 @@ const generateWorkflowLogic = async ({
 };
 
 // Inlined from _lib/docs-chat-config.ts to maintain consistency with the Vercel Edge Function.
-const getSystemInstruction = () => {
+const getSystemInstruction = (repoContext) => {
+  const contextInstruction = repoContext
+    ? `The user is currently viewing the '${repoContext.full_name}' repository. It is a ${repoContext.language || 'not specified language'} project. It ${repoContext.has_workflows ? 'HAS' : 'DOES NOT HAVE'} an AutoFlow pipeline configured. Tailor your answers to this context.`
+    : '';
+
   return `You are "Buddy Bot", a friendly and helpful AI assistant for AutoFlow. Your knowledge is strictly limited to the AutoFlow application and its features. Do not answer questions about any other topic.
+${contextInstruction}
 
 AutoFlow is a web platform that helps developers automate their code deployment using GitHub Actions. It simplifies creating CI/CD pipelines.
 
@@ -331,7 +336,7 @@ app.post('/api/chat-with-docs', async (req, res) => {
   if (!process.env.API_KEY) {
       return res.status(500).json({ error: "Server configuration error: API_KEY is missing." });
   }
-  const { messages } = req.body;
+  const { messages, repoContext } = req.body;
   if (!messages || !Array.isArray(messages) || messages.length === 0) {
       return res.status(400).json({ error: "Missing or invalid 'messages' array in request body." });
   }
@@ -348,7 +353,7 @@ app.post('/api/chat-with-docs', async (req, res) => {
       
       const chat = ai.chats.create({
           model: 'gemini-2.5-flash',
-          config: { systemInstruction: getSystemInstruction() },
+          config: { systemInstruction: getSystemInstruction(repoContext) },
           history: history,
       });
 
