@@ -313,3 +313,46 @@ export const rerunFailedJobs = (
         { method: 'POST' }
     );
 };
+
+interface GitHubWorkflow {
+  id: number;
+  name: string;
+  path: string;
+  state: string;
+}
+
+// Function to trigger a new deployment via workflow_dispatch
+export const triggerRedeployment = async (
+    token: string,
+    owner: string,
+    repo: string,
+    branch: string
+): Promise<void> => {
+    // 1. List workflows to find one managed by AutoFlow
+    const { workflows } = await githubApiRequest<{ workflows: GitHubWorkflow[] }>(
+        `/repos/${owner}/${repo}/actions/workflows`,
+        token
+    );
+    
+    if (!workflows || workflows.length === 0) {
+        throw new Error("No workflows found for this repository.");
+    }
+
+    // 2. Find the AutoFlow workflow by a keyword in its path
+    const autoFlowWorkflow = workflows.find(wf => wf.path.includes('autoflow'));
+
+    if (!autoFlowWorkflow) {
+        throw new Error("Could not find a workflow managed by AutoFlow. Please configure a pipeline first.");
+    }
+
+    // 3. Trigger the workflow dispatch event on the specified branch
+    await githubApiRequest(
+        `/repos/${owner}/${repo}/actions/workflows/${autoFlowWorkflow.id}/dispatches`,
+        token,
+        {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ref: branch }),
+        }
+    );
+};

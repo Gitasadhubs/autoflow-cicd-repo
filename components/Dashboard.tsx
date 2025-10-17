@@ -8,7 +8,7 @@ import {
     CheckCircleIcon, XCircleIcon, ArrowPathIcon, CodeBracketIcon, LockClosedIcon, 
     StopCircleIcon, LogoIcon, QuestionMarkCircleIcon, ChatBubbleOvalLeftIcon, SunIcon, MoonIcon, MagnifyingGlassIcon
 } from './icons';
-import { getRepos, getDeploymentsForRepo, hasWorkflows, getLatestWorkflowRun, rerunWorkflow, rerunFailedJobs } from '../services/githubService';
+import { getRepos, getDeploymentsForRepo, hasWorkflows, getLatestWorkflowRun, rerunWorkflow, rerunFailedJobs, triggerRedeployment } from '../services/githubService';
 
 interface DashboardProps {
   user: User;
@@ -238,6 +238,8 @@ const Dashboard: React.FC<DashboardProps> = ({ user, token, onLogout, theme, onT
   const [deploymentError, setDeploymentError] = useState<string | null>(null);
   const [rerunningRepos, setRerunningRepos] = useState<Set<number>>(new Set());
   const [searchQuery, setSearchQuery] = useState('');
+  const [isRedeploying, setIsRedeploying] = useState<boolean>(false);
+  const [redeployStatus, setRedeployStatus] = useState<{ type: 'success' | 'error', message: string } | null>(null);
   
   const fetchRepos = useCallback(async (showLoading = true) => {
     if (showLoading) {
@@ -276,6 +278,61 @@ const Dashboard: React.FC<DashboardProps> = ({ user, token, onLogout, theme, onT
   useEffect(() => {
     fetchRepos();
   }, [fetchRepos]);
+  
+  const fetchDeployments = useCallback(async (repo: Repository, isRefresh = false) => {
+    // On a full fetch (not a background refresh), show loading state and clear old data.
+    if (!isRefresh) {
+        setLoadingDeployments(true);
+        setDeployments([]);
+        setDeploymentError(null);
+    }
+    try {
+        const repoDeployments = await getDeploymentsForRepo(token, repo.owner.login, repo.name);
+        repoDeployments.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+        setDeployments(repoDeployments);
+    } catch (error) {
+        console.error(`Failed to fetch deployments for ${repo.name}`, error);
+        // Only show an error message on a full fetch to avoid interrupting the user.
+        if (!isRefresh) {
+            const errorMessage = error instanceof Error ? error.message : "An unknown error occurred.";
+            setDeploymentError(errorMessage);
+        }
+    } finally {
+        if (!isRefresh) {
+            setLoadingDeployments(false);
+        }
+    }
+  }, [token]);
+
+  // Effect for auto-refreshing deployments
+  useEffect(() => {
+    if (!selectedRepo) return;
+
+    // Check if there are any deployments in a non-terminal state that require polling.
+    const hasActiveDeployment = deployments.some(dep => 
+      [DeploymentStatus.InProgress, DeploymentStatus.Pending, DeploymentStatus.Queued].includes(dep.status)
+    );
+
+    // If no deployments are active, we don't need to poll.
+    if (!hasActiveDeployment) return;
+
+    // Set up an interval to perform a silent refresh every 30 seconds.
+    const intervalId = setInterval(() => {
+      fetchDeployments(selectedRepo, true); // `true` indicates a silent refresh
+    }, 30000);
+
+    // Cleanup function to clear the interval when the component unmounts
+    // or when the dependencies (selectedRepo, deployments) change.
+    return () => clearInterval(intervalId);
+
+  }, [selectedRepo, deployments, fetchDeployments]);
+
+  const handleRepoSelect = useCallback(async (repo: Repository) => {
+    if (selectedRepo?.id === repo.id) return; // Don't refetch if already selected
+
+    setSelectedRepo(repo);
+    fetchDeployments(repo);
+  }, [selectedRepo, fetchDeployments]);
 
   const handleRerunWorkflow = useCallback(async (repo: Repository) => {
     if (!repo.latestRunId) return;
@@ -290,6 +347,9 @@ const Dashboard: React.FC<DashboardProps> = ({ user, token, onLogout, theme, onT
         // After triggering a rerun, schedule a silent refresh to update the status.
         setTimeout(() => {
             fetchRepos(false);
+            if(selectedRepo && selectedRepo.id === repo.id) {
+                fetchDeployments(repo);
+            }
         }, 3000);
     } catch (error) {
         console.error(`Failed to rerun workflow for ${repo.name}`, error);
@@ -304,35 +364,53 @@ const Dashboard: React.FC<DashboardProps> = ({ user, token, onLogout, theme, onT
             });
         }, 5000);
     }
-  }, [token, fetchRepos]);
+  }, [token, fetchRepos, selectedRepo, fetchDeployments]);
 
-  const handleRepoSelect = useCallback(async (repo: Repository) => {
-    if (selectedRepo?.id === repo.id) return; // Don't refetch if already selected
+  const handleRedeploy = useCallback(async () => {
+    if (!selectedRepo) return;
 
-    setSelectedRepo(repo);
-    setLoadingDeployments(true);
-    setDeployments([]);
-    setDeploymentError(null);
+    setIsRedeploying(true);
+    setRedeployStatus(null);
     try {
-        const repoDeployments = await getDeploymentsForRepo(token, repo.owner.login, repo.name);
-        repoDeployments.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-        setDeployments(repoDeployments);
+        await triggerRedeployment(token, selectedRepo.owner.login, selectedRepo.name, selectedRepo.default_branch);
+        setRedeployStatus({ type: 'success', message: 'Redeployment triggered successfully! Refreshing status...' });
+        
+        // Refresh repo status after a delay to allow GitHub to start the workflow
+        setTimeout(() => {
+            fetchRepos(false);
+            if (selectedRepo) {
+                fetchDeployments(selectedRepo); 
+            }
+        }, 5000);
+
     } catch (error) {
-        console.error(`Failed to fetch deployments for ${repo.name}`, error);
         const errorMessage = error instanceof Error ? error.message : "An unknown error occurred.";
-        setDeploymentError(errorMessage);
+        setRedeployStatus({ type: 'error', message: errorMessage });
     } finally {
-        setLoadingDeployments(false);
+        setIsRedeploying(false);
+        // Hide the status message after some time
+        setTimeout(() => setRedeployStatus(null), 6000);
     }
-  }, [token, selectedRepo]);
+  }, [selectedRepo, token, fetchRepos, fetchDeployments]);
   
   const handlePipelineConfigured = useCallback((repoId: number) => {
-    setRepositories(prev => prev.map(r => r.id === repoId ? { ...r, has_workflows: true } : r));
-    const newlyConfiguredRepo = repositories.find(r => r.id === repoId);
-    if (newlyConfiguredRepo) {
-        handleRepoSelect(newlyConfiguredRepo);
+    let configuredRepo: Repository | undefined;
+    setRepositories(prev => {
+        const newRepos = prev.map(r => {
+            if (r.id === repoId) {
+                configuredRepo = { ...r, has_workflows: true };
+                return configuredRepo;
+            }
+            return r;
+        });
+        return newRepos;
+    });
+
+    if (configuredRepo) {
+        setSelectedRepo(configuredRepo);
+        fetchDeployments(configuredRepo);
     }
-  }, [repositories, handleRepoSelect]);
+  }, [fetchDeployments]);
 
   const filteredRepositories = repositories.filter(repo =>
     repo.full_name.toLowerCase().includes(searchQuery.toLowerCase())
@@ -424,9 +502,27 @@ const Dashboard: React.FC<DashboardProps> = ({ user, token, onLogout, theme, onT
           </div>
           
           <div className="space-y-6">
-            <h2 className="text-3xl font-bold text-gray-900 dark:text-gray-100">
-                {selectedRepo ? `Deployments for ${selectedRepo.name}` : 'Repository Details'}
-            </h2>
+            <div className="flex justify-between items-center">
+                <h2 className="text-3xl font-bold text-gray-900 dark:text-gray-100">
+                    {selectedRepo ? `Deployments for ${selectedRepo.name}` : 'Repository Details'}
+                </h2>
+                {selectedRepo && selectedRepo.has_workflows && (
+                    <button
+                        onClick={handleRedeploy}
+                        disabled={isRedeploying}
+                        className="flex items-center bg-sky-600 hover:bg-sky-700 text-white font-semibold py-2 px-4 rounded-lg transition duration-300 disabled:bg-sky-800 disabled:cursor-not-allowed"
+                        title="Trigger a new deployment using the latest commit on the default branch."
+                    >
+                        <ArrowPathIcon className={`w-5 h-5 mr-2 ${isRedeploying ? 'animate-spin' : ''}`} />
+                        Redeploy
+                    </button>
+                )}
+            </div>
+            {redeployStatus && (
+                <div className={`-mt-2 p-3 rounded-lg text-sm transition-opacity duration-300 ${redeployStatus.type === 'success' ? 'bg-green-500/10 text-green-700 dark:text-green-300 border border-green-500/20' : 'bg-red-500/10 text-red-700 dark:text-red-300 border border-red-500/20'}`}>
+                    {redeployStatus.message}
+                </div>
+            )}
             <div className="bg-light-surface dark:bg-brand-surface rounded-lg shadow-sm overflow-hidden border border-gray-200 dark:border-gray-700">
                 <div className="grid grid-cols-12 items-center gap-4 py-3 px-4 text-xs font-bold text-gray-500 dark:text-gray-400 uppercase border-b border-gray-200 dark:border-gray-700 bg-gray-100 dark:bg-gray-900/50">
                     <div className="col-span-1"></div>

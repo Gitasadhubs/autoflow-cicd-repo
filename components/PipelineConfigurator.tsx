@@ -156,8 +156,14 @@ const PipelineConfigurator: React.FC<PipelineConfiguratorProps> = ({ repo, token
         setRequiredVariables(variables);
         setRequiredSecrets(secrets);
     } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : "An unknown error occurred during workflow generation.";
-        setGenerationError(errorMessage);
+        // Fix for error: Argument of type 'unknown' is not assignable to parameter of type 'string'.
+        // The 'error' object in a catch block is of type 'unknown'. We must first verify
+        // it is an instance of Error before accessing 'error.message' to avoid a type error.
+        if (error instanceof Error) {
+            setGenerationError(error.message);
+        } else {
+            setGenerationError("An unknown error occurred during workflow generation.");
+        }
         console.error("Workflow generation failed:", error);
     } finally {
         setIsLoading(false);
@@ -245,8 +251,14 @@ const PipelineConfigurator: React.FC<PipelineConfiguratorProps> = ({ repo, token
         await stepExecutors[step]();
         setCommitProgress(prev => ({ ...prev, [step]: 'success' }));
       } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : `An unknown error occurred during the '${step}' step.`;
-        setCommitError(errorMessage);
+        // Fix for error: Argument of type 'unknown' is not assignable to parameter of type 'string'.
+        // The 'error' object in a catch block is of type 'unknown'. We must first verify
+        // it is an instance of Error before accessing 'error.message' to avoid a type error.
+        if (error instanceof Error) {
+            setCommitError(error.message);
+        } else {
+            setCommitError(`An unknown error occurred during the '${step}' step.`);
+        }
         setCommitProgress(prev => ({ ...prev, [step]: 'error' }));
         return; // Stop on error, allowing the user to retry
       }
