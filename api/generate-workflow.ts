@@ -4,7 +4,6 @@
 // correctly typed on `VercelRequest` and `VercelResponse`.
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { GoogleGenAI, Type, GenerateContentResponse, HarmCategory, HarmBlockThreshold } from '@google/genai';
-import { RepoAnalysisResult } from '../../types';
 
 // Copied from types.ts to make the Vercel function self-contained and avoid bundling issues.
 export enum TechStack {
@@ -28,6 +27,19 @@ export enum DeploymentTarget {
 export enum DeploymentEnvironment {
     Staging = 'Staging',
     Production = 'Production',
+}
+
+// Copied from types.ts to resolve build error.
+export interface RepoAnalysisResult {
+  packageManager: 'npm' | 'yarn' | 'pnpm' | 'unknown';
+  nodeVersion: string | null;
+  buildCommand: string | null;
+  testCommand: string | null;
+  installCommand: string;
+  runCommand: string;
+  lockFile: string | null;
+  framework: string | null;
+  keyFiles: { path: string, content: string }[]; 
 }
 
 interface AdvancedTriggers {
