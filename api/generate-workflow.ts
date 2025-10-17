@@ -64,9 +64,12 @@ const generateWorkflowLogic = async ({
         [DeploymentTarget.Vercel]: `
         INSTRUCTIONS FOR VERCEL DEPLOYMENT:
         - The deployment MUST be done using the official Vercel CLI.
-        - Authentication requires a 'VERCEL_TOKEN', which MUST be a sensitive secret.
-        - The deployment also requires 'VERCEL_PROJECT_ID' and 'VERCEL_ORG_ID', which are best handled as secrets because they are sensitive identifiers.
-        - The workflow MUST specify the correct production command for Vercel. The full command should be \`vercel pull --yes --environment=${deploymentEnvironment.toLowerCase()} --token=\${{ secrets.VERCEL_TOKEN }} && vercel build --token=\${{ secrets.VERCEL_TOKEN }} && vercel deploy --prebuilt --token=\${{ secrets.VERCEL_TOKEN }}${deploymentEnvironment === DeploymentEnvironment.Production ? ' --prod' : ''}\`
+        - The workflow MUST include a step to globally install the Vercel CLI ('npm install -g vercel').
+        - Authentication and project linking is handled via secrets.
+        - The Vercel CLI requires 'VERCEL_ORG_ID' and 'VERCEL_PROJECT_ID' to be available as environment variables in the deployment step.
+        - The 'VERCEL_TOKEN' must be passed directly to the commands using the '--token' flag.
+        - The full deployment command sequence is: 'vercel pull ... && vercel build ... && vercel deploy ...'.
+        - For a production environment, the deploy command MUST include the '--prod' flag.
         - REQUIRED SECRETS: VERCEL_TOKEN, VERCEL_PROJECT_ID, VERCEL_ORG_ID.
         `,
         [DeploymentTarget.Firebase]: `

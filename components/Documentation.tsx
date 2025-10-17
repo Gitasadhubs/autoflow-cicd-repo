@@ -71,7 +71,7 @@ const Documentation: React.FC<DocumentationProps> = ({ onClose }) => {
 
                 <div className="mt-4">
                     <h4 className="text-lg font-medium text-gray-800 dark:text-gray-200">Example 1: React (Vite) to Vercel</h4>
-                    <p className="text-sm">This is a common setup for deploying a modern frontend application. The generated workflow will build your React app and then deploy the static output to Vercel.</p>
+                    <p className="text-sm">This is a common setup for deploying a modern frontend application. The generated workflow will build your React app and then deploy the static output to Vercel using their official CLI.</p>
                     <p className="text-sm mt-2 font-semibold">Typical Secrets:</p>
                     <ul className="list-disc list-inside mt-1 ml-4 text-sm">
                         <li><Code>VERCEL_TOKEN</Code>: Your Vercel account token for authentication.</li>
@@ -81,11 +81,14 @@ const Documentation: React.FC<DocumentationProps> = ({ onClose }) => {
                     <p className="text-sm mt-2 font-semibold">Example Workflow Snippet:</p>
                     <YamlBlock>{`
 - name: Deploy to Vercel
-  uses: amondnet/vercel-action@v20
-  with:
-    vercel-token: \${{ secrets.VERCEL_TOKEN }}
-    vercel-project-id: \${{ secrets.VERCEL_PROJECT_ID }}
-    vercel-org-id: \${{ secrets.VERCEL_ORG_ID }}
+  run: |
+    npm install -g vercel
+    vercel pull --yes --environment=production --token=\${{ secrets.VERCEL_TOKEN }}
+    vercel build --token=\${{ secrets.VERCEL_TOKEN }}
+    vercel deploy --prebuilt --prod --token=\${{ secrets.VERCEL_TOKEN }}
+  env:
+    VERCEL_ORG_ID: \${{ secrets.VERCEL_ORG_ID }}
+    VERCEL_PROJECT_ID: \${{ secrets.VERCEL_PROJECT_ID }}
                     `}</YamlBlock>
                 </div>
 

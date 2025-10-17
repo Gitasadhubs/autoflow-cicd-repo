@@ -41,9 +41,12 @@ const generateWorkflowLogic = async ({
         'Vercel': `
         INSTRUCTIONS FOR VERCEL DEPLOYMENT:
         - The deployment MUST be done using the official Vercel CLI.
-        - Authentication requires a 'VERCEL_TOKEN', which MUST be a sensitive secret.
-        - The deployment also requires 'VERCEL_PROJECT_ID' and 'VERCEL_ORG_ID', which are best handled as secrets because they are sensitive identifiers.
-        - The workflow MUST specify the correct production command for Vercel. The full command should be \`vercel pull --yes --environment=${deploymentEnvironment.toLowerCase()} --token=\${{ secrets.VERCEL_TOKEN }} && vercel build --token=\${{ secrets.VERCEL_TOKEN }} && vercel deploy --prebuilt --token=\${{ secrets.VERCEL_TOKEN }}${deploymentEnvironment === 'Production' ? ' --prod' : ''}\`
+        - The workflow MUST include a step to globally install the Vercel CLI ('npm install -g vercel').
+        - Authentication and project linking is handled via secrets.
+        - The Vercel CLI requires 'VERCEL_ORG_ID' and 'VERCEL_PROJECT_ID' to be available as environment variables in the deployment step.
+        - The 'VERCEL_TOKEN' must be passed directly to the commands using the '--token' flag.
+        - The full deployment command sequence is: 'vercel pull ... && vercel build ... && vercel deploy ...'.
+        - For a production environment, the deploy command MUST include the '--prod' flag.
         - REQUIRED SECRETS: VERCEL_TOKEN, VERCEL_PROJECT_ID, VERCEL_ORG_ID.
         `,
         'Firebase Hosting': `
@@ -357,4 +360,143 @@ Here's what you need to know about AutoFlow:
 
 1.  **Authentication:**
     *   Users log in with a GitHub Personal Access Token (PAT).
-    *   The PAT requires two scopes: 'repo' (for full
+    *   The PAT requires two scopes: 'repo' (for full control of repositories to create workflow files) and 'read:user' (to display user name/avatar).
+
+2.  **Core Functionality (How to Configure a Pipeline):**
+    *   The user selects a repository from their list.
+    *   They click "Configure Pipeline".
+    *   In a modal, they choose:
+        *   Tech Stack (e.g., React, Next.js, Node.js)
+        *   Deployment Target (e.g., Vercel, GitHub Pages, Railway)
+        *   Environment (e.g., Staging, Production)
+    *   They click "Generate Workflow File". This uses an AI to create a custom GitHub Actions YAML file.
+    *   The app then prompts for necessary "Variables" (non-sensitive, e.g., NODE_VERSION) and "Secrets" (sensitive, e.g., VERCEL_TOKEN).
+    *   After the user fills these in, they click "Confirm Setup".
+    *   AutoFlow then automatically commits the '.yml' file to the '.github/workflows/' directory in their repo and sets the variables and secrets in the repository settings.
+
+3.  **Troubleshooting:**
+    *   **Repositories not showing:** This is likely due to the PAT missing the 'repo' scope or the user not having admin/push permissions for the repo.
+    *   **Pipeline failed:** The dashboard shows a high-level status. To debug, the user must click the status badge (e.g., "Failed"). This links directly to the detailed logs for that specific workflow run on GitHub.
+
+4.  **Common Deployment Examples:**
+    *   **React to Vercel:** Requires secrets like \`VERCEL_TOKEN\`, \`VERCEL_PROJECT_ID\`, and \`VERCEL_ORG_ID\`.
+    *   **Static HTML to GitHub Pages:** Usually requires no secrets, as it uses the built-in \`GITHUB_TOKEN\`.
+    *   **Node.js to Railway:** Requires a \`RAILWAY_TOKEN\` secret. The workflow installs the Railway CLI and runs \`railway up\`.
+
+Your tone should be encouraging and clear. Keep your answers concise and focused on helping the user with AutoFlow. If asked about something outside your knowledge base, politely state that you can only assist with AutoFlow. When you mention a UI element like a button, wrap it in backticks, for example: \`Configure Pipeline\`.`;
+};
+
+
+// API route to generate workflow
+app.post('/api/generate-workflow', async (req, res) => {
+  const { techStack, deploymentTarget, deploymentEnvironment, repoName, triggers, analysis } = req.body;
+  if (!techStack || !deploymentTarget || !deploymentEnvironment || !repoName || !triggers || !analysis) {
+    return res.status(400).json({ error: "Missing required parameters in the request body." });
+  }
+
+  try {
+    const result = await generateWorkflowLogic({
+        techStack,
+        deploymentTarget,
+        deploymentEnvironment,
+        repoName,
+        triggers,
+        analysis
+    });
+    return res.status(200).json(result);
+  } catch (error) {
+    console.error("Error generating workflow:", error);
+    const errorMessage = error instanceof Error ? error.message : "An unknown error occurred on the server.";
+    return res.status(500).json({ error: errorMessage });
+  }
+});
+
+// API route for documentation chat
+app.post('/api/chat-with-docs', async (req, res) => {
+    try {
+        if (!process.env.API_KEY) {
+            return res.status(500).json({ error: "Server configuration error: API_KEY is missing." });
+        }
+        
+        const { messages, repoContext } = req.body;
+        if (!messages || !Array.isArray(messages) || messages.length === 0) {
+            return res.status(400).json({ error: 'Invalid "messages" property in request body.' });
+        }
+        
+        const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+        
+        const history = messages.slice(0, -1).map(msg => ({
+            role: msg.role === 'assistant' ? 'model' : 'user',
+            parts: [{ text: msg.content }],
+        }));
+        
+        const lastMessage = messages[messages.length - 1];
+        
+        const chat = ai.chats.create({
+            model: 'gemini-2.5-flash',
+            config: { systemInstruction: getSystemInstruction(repoContext) },
+            history: history,
+        });
+
+        const stream = await chat.sendMessageStream({ message: lastMessage.content });
+
+        res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+        res.setHeader('Cache-Control', 'no-cache');
+        res.setHeader('Connection', 'keep-alive');
+
+        for await (const chunk of stream) {
+            const text = chunk.text;
+            if (text) {
+                res.write(text);
+            }
+        }
+        res.end();
+
+    } catch (error) {
+        console.error("Error in docs chat handler:", error);
+        const errorMessage = error instanceof Error ? error.message : "An unknown error occurred.";
+        res.status(500).json({ error: errorMessage });
+    }
+});
+
+
+// API route to encrypt secrets
+app.post('/api/encrypt', async (req, res) => {
+    const { publicKey, valueToEncrypt } = req.body;
+
+    if (!publicKey || !valueToEncrypt) {
+        return res.status(400).json({ error: 'Missing publicKey or valueToEncrypt.' });
+    }
+
+    try {
+        await libsodium.ready;
+        
+        // Convert the secret and key to Uint8Array
+        const secretBytes = libsodium.utils.decodeUTF8(valueToEncrypt);
+        const publicKeyBytes = libsodium.utils.decodeBase64(publicKey);
+
+        // Encrypt the secret using libsodium
+        const encryptedBytes = libsodium.crypto_box_seal(secretBytes, publicKeyBytes);
+
+        // Convert the encrypted Uint8Array to a base64 string
+        const encryptedValue = libsodium.utils.encodeBase64(encryptedBytes);
+        
+        res.status(200).json({ encryptedValue });
+    } catch (error) {
+        console.error('Encryption failed:', error);
+        res.status(500).json({ error: 'Failed to encrypt secret on the server.' });
+    }
+});
+
+// Serve static files from the React app build directory
+app.use(express.static(path.join(__dirname, 'dist')));
+
+// The "catchall" handler: for any request that doesn't match one above, send back React's index.html file.
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, 'dist', 'index.html'));
+});
+
+// Start the server
+app.listen(PORT, () => {
+  console.log(`Server is running on http://localhost:${PORT}`);
+});
