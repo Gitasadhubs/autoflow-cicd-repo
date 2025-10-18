@@ -16,7 +16,7 @@ export default defineConfig({
   build: {
     rollupOptions: {
       // Externalize modules that are loaded via import map to prevent build errors
-      external: ['react-simple-code-editor']
+      external: ['react-simple-code-editor', 'prismjs', /^prismjs\/.*/]
     }
   }
 })
