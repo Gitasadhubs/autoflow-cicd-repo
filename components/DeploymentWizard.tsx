@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import { Repository, TechStack, DeploymentTarget, DeploymentEnvironment, RequiredVariable, RequiredSecret } from '../types';
-// FIX: Changed import from githubService to geminiService as that's where generateWorkflow is exported from.
+// FIX: `generateWorkflow` and `AdvancedTriggers` are exported from `geminiService`, not `githubService`.
 import { generateWorkflow, AdvancedTriggers } from '../services/geminiService';
 import { createWorkflowFile, setRepositoryVariable, setRepositorySecret, analyzeRepository } from '../services/githubService';
 import { 
