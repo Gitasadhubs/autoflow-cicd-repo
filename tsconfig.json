@@ -20,12 +20,13 @@
   },
   "include": [
     "api",
-    "components",
-    "services",
     "App.tsx",
+    "components",
     "constants.ts",
+    "declarations.d.ts",
     "index.tsx",
     "server.js",
+    "services",
     "types.ts",
     "vite.config.ts"
   ],
