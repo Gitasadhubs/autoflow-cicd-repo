@@ -2,6 +2,10 @@ import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { Repository, TechStack, DeploymentTarget, DeploymentEnvironment, RequiredVariable, RequiredSecret } from '../types';
 import { generateWorkflow, AdvancedTriggers } from '../services/geminiService';
 import { createWorkflowFile, setRepositoryVariable, setRepositorySecret, getWorkflowConfiguration, analyzeRepository } from '../services/githubService';
+import Editor from 'react-simple-code-editor';
+import Prism from 'prismjs';
+// This import will load the yaml grammar into the Prism object.
+import 'prismjs/components/prism-yaml.js';
 import { 
     ClipboardIcon, ClipboardCheckIcon, CodeBracketIcon, CheckCircleIcon, LockClosedIcon, 
     EyeIcon, EyeSlashIcon, LogoIcon, ArrowPathIcon, XCircleIcon, XCircleIcon as XIcon,
@@ -141,6 +145,12 @@ const PipelineConfigurator: React.FC<PipelineConfiguratorProps> = ({ repo, token
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  const highlightWithLineNumbers = (code: string) =>
+    Prism.highlight(code, Prism.languages.yaml, 'yaml')
+        .split('\n')
+        .map((line) => `<span class="line-content">${line}</span>`)
+        .join('\n');
+
 
   useEffect(() => {
     // Pre-fill variable values with defaults when they are loaded
@@ -154,10 +164,19 @@ const PipelineConfigurator: React.FC<PipelineConfiguratorProps> = ({ repo, token
     useEffect(() => {
         if (mode === 'create') {
             const selected = templates.find(t => t.id === selectedTemplateId);
-            if (selected && selected.id !== 'custom' && selected.id !== 'import') {
-                setTechStack(selected.techStack);
-                setDeploymentTarget(selected.deploymentTarget);
+            if (selected) {
+                if (selected.id === 'custom') {
+                    // When switching to 'Custom', reset to the first available option
+                    // to make it clear the user is now in manual selection mode.
+                    setTechStack(Object.values(TechStack)[0]);
+                    setDeploymentTarget(Object.values(DeploymentTarget)[0]);
+                } else if (selected.id !== 'import') {
+                    // For pre-defined templates, use their settings.
+                    setTechStack(selected.techStack);
+                    setDeploymentTarget(selected.deploymentTarget);
+                }
             }
+            
             if (selectedTemplateId !== 'import') {
                 setGeneratedYaml('');
                 setRequiredVariables([]);
@@ -294,11 +313,24 @@ const PipelineConfigurator: React.FC<PipelineConfiguratorProps> = ({ repo, token
         setRequiredVariables(variables);
         setRequiredSecrets(secrets);
     } catch (error) {
+        let displayMessage = "An unknown error occurred during workflow generation. Please check the browser console for more details.";
         if (error instanceof Error) {
-            setGenerationError(error.message);
-        } else {
-            setGenerationError("An unknown error occurred during workflow generation.");
+            const lowerCaseError = error.message.toLowerCase();
+            if (lowerCaseError.includes('api_key')) {
+                displayMessage = "AI generation failed due to a server configuration error. The API key may be missing or invalid. Please contact the administrator.";
+            } else if (lowerCaseError.includes('safety filter') || lowerCaseError.includes('blocked')) {
+                displayMessage = "The request was blocked by the AI's safety filters. This can happen if the generated content contains sensitive keywords. Please try adjusting your configuration.";
+            } else if (lowerCaseError.includes('malformed') || lowerCaseError.includes('could not be processed')) {
+                displayMessage = "The AI model returned a malformed response that couldn't be understood. This might be a temporary issue. Please try generating the workflow again.";
+            } else if (lowerCaseError.includes('timeout')) {
+                displayMessage = "The request to the AI model timed out as it took longer than 30 seconds. The service may be under heavy load. Please wait a moment and try again.";
+            } else {
+                // Use the original error message if it's not one of the specific cases, but provide context.
+                displayMessage = `An unexpected error occurred: ${error.message}`;
+            }
         }
+        
+        setGenerationError(displayMessage);
         console.error("Workflow generation failed:", error);
     } finally {
         setIsLoading(false);
@@ -735,13 +767,22 @@ const PipelineConfigurator: React.FC<PipelineConfiguratorProps> = ({ repo, token
                             >
                                 {isCopied ? <ClipboardCheckIcon className="h-5 w-5 text-green-500" /> : <ClipboardIcon className="h-5 w-5" />}
                             </button>
-                            <textarea
-                                value={generatedYaml}
-                                onChange={(e) => setGeneratedYaml(e.target.value)}
-                                className="w-full h-60 p-4 font-mono text-sm text-gray-800 dark:text-gray-200 bg-gray-100 dark:bg-gray-900 rounded-lg resize-y border border-gray-300 dark:border-gray-700 focus:outline-none focus:ring-2 focus:ring-brand-primary focus:border-transparent"
-                                aria-label="Generated workflow YAML content"
-                                spellCheck="false"
-                            />
+                            <div className="yaml-editor-container border border-gray-300 dark:border-gray-700 focus-within:ring-2 focus-within:ring-brand-primary">
+                                <Editor
+                                    value={generatedYaml}
+                                    onValueChange={setGeneratedYaml}
+                                    highlight={highlightWithLineNumbers}
+                                    padding={10}
+                                    style={{
+                                        fontFamily: '"Fira Code", "Courier New", Courier, monospace',
+                                        fontSize: 14,
+                                        lineHeight: 1.5,
+                                    }}
+                                    aria-label="Generated workflow YAML content"
+                                    spellCheck="false"
+                                    className="yaml-editor"
+                                />
+                            </div>
                         </div>
                     </div>
                   )}

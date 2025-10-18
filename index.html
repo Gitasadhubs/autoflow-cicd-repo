@@ -6,6 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>AutoFlow CI/CD</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-okaidia.min.css" integrity="sha512-mIs9kKbaw6JZFfSuo+MovjU+Ntggfoj8RwAmJbVXQ5mkAX5LlgETQEweFPI18humSPHymTb5iikEOKWF7I8dIQ==" crossorigin="anonymous" referrerpolicy="no-referrer" />
     <script>
       tailwind.config = {
         darkMode: 'class', // Enable class-based dark mode
@@ -66,6 +67,60 @@
         background-size: cover;
         background-position: center center;
       }
+
+      /* Styles for the code editor */
+      .yaml-editor-container {
+          height: 240px; /* h-60 */
+          overflow: auto;
+          background: #272822; /* Okaidia theme default */
+          color: #f8f8f2;
+          border-radius: 0.5rem;
+          position: relative;
+      }
+      html.light .yaml-editor-container {
+          background: #fafafa;
+          color: #383a42;
+      }
+      .yaml-editor-container .prism-editor-wrapper {
+        min-height: 100%;
+      }
+      .yaml-editor-container code[class*="language-"],
+      .yaml-editor-container pre[class*="language-"] {
+          background: transparent !important;
+          text-shadow: none !important;
+      }
+      .yaml-editor-container pre {
+          counter-reset: line;
+          padding-left: 3.8em !important;
+      }
+      .yaml-editor-container .line-content {
+          display: block;
+          position: relative;
+      }
+      .yaml-editor-container .line-content::before {
+          position: absolute;
+          left: -3.8em;
+          width: 3em;
+          padding-right: 1em;
+          text-align: right;
+          color: #5f5f5f;
+          content: counter(line);
+          counter-increment: line;
+          user-select: none;
+      }
+      html.light .yaml-editor-container .line-content::before {
+          color: #ccc;
+      }
+      html.light .yaml-editor-container .token.key { color: #e45649; }
+      html.light .yaml-editor-container .token.string { color: #50a14f; }
+      html.light .yaml-editor-container .token.boolean { color: #c99119; }
+      html.light .yaml-editor-container .token.number { color: #986801; }
+      html.light .yaml-editor-container .token.comment { color: #a0a1a7; font-style: italic; }
+
+      .yaml-editor-container .prism-editor__textarea:focus,
+      .yaml-editor-container .prism-editor__editor:focus {
+          outline: none;
+      }
     </style>
 <script type="importmap">
 {
@@ -82,7 +137,12 @@
     "@google/genai": "https://aistudiocdn.com/@google/genai@^1.25.0",
     "@vercel/node": "https://aistudiocdn.com/@vercel/node@^5.4.0",
     "dotenv": "https://aistudiocdn.com/dotenv@^17.2.3",
-    "libsodium-wrappers": "https://aistudiocdn.com/libsodium-wrappers@^0.7.15"
+    "libsodium-wrappers": "https://aistudiocdn.com/libsodium-wrappers@^0.7.15",
+    "child_process": "https://aistudiocdn.com/child_process@^1.0.2",
+    "react-simple-code-editor": "https://ga.jspm.io/npm:react-simple-code-editor@0.13.1/lib/index.js",
+    "prismjs": "https://ga.jspm.io/npm:prismjs@1.29.0/prism.js",
+    "prismjs/components/prism-yaml.js": "https://ga.jspm.io/npm:prismjs@1.29.0/components/prism-yaml.js",
+    "prismjs/": "https://aistudiocdn.com/prismjs@^1.30.0/"
   }
 }
 </script>

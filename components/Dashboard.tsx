@@ -4,10 +4,12 @@ import PipelineConfigurator from './PipelineConfigurator';
 import LogViewer from './LogViewer';
 import BuddyBot from './DocsChat';
 import Documentation from './Documentation';
+import CliTerminal from './CliTerminal';
 import { 
     CheckCircleIcon, XCircleIcon, ArrowPathIcon, CodeBracketIcon, LockClosedIcon, 
     StopCircleIcon, LogoIcon, QuestionMarkCircleIcon, ChatBubbleOvalLeftIcon, SunIcon, MoonIcon, MagnifyingGlassIcon, BranchIcon,
-    PencilIcon
+    PencilIcon,
+    CommandLineIcon
 } from './icons';
 import { getRepos, getDeploymentsForRepo, hasWorkflows, getLatestWorkflowRun, rerunWorkflow, rerunFailedJobs, triggerRedeployment, cancelWorkflowRun } from '../services/githubService';
 
@@ -26,7 +28,8 @@ const Header: React.FC<{
     onShowBuddyBot: () => void;
     theme: 'light' | 'dark';
     onToggleTheme: () => void;
-}> = ({ user, onLogout, onShowDocs, onShowBuddyBot, theme, onToggleTheme }) => (
+    onShowCli: () => void;
+}> = ({ user, onLogout, onShowDocs, onShowBuddyBot, theme, onToggleTheme, onShowCli }) => (
   <header className="bg-light-surface dark:bg-brand-surface shadow-md p-4 flex justify-between items-center border-b border-gray-200 dark:border-gray-700">
     <div className="flex items-center space-x-3">
         <div className="w-10 h-10 bg-brand-primary/10 text-brand-primary rounded-lg flex items-center justify-center ring-1 ring-brand-primary/30">
@@ -59,6 +62,14 @@ const Header: React.FC<{
       >
         <ChatBubbleOvalLeftIcon className="w-5 h-5 mr-0 md:mr-2" />
         <span className="hidden md:block">Buddy Bot</span>
+      </button>
+      <button
+        onClick={onShowCli}
+        className="bg-gray-800 dark:bg-gray-900/50 hover:bg-black dark:hover:bg-black/50 text-white font-semibold py-2 px-2 md:px-4 rounded-lg transition duration-300 flex items-center border border-gray-600 dark:border-gray-700"
+        title="Open Integrated CLI"
+      >
+        <CommandLineIcon className="w-5 h-5 mr-0 md:mr-2" />
+        <span className="hidden md:block">CLI</span>
       </button>
       <button onClick={onLogout} className="bg-red-600 hover:bg-red-700 text-white font-semibold py-2 px-4 rounded-lg transition duration-300">
         Logout
@@ -280,6 +291,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, token, onLogout, theme, onT
   const [viewingLogs, setViewingLogs] = useState<Deployment | null>(null);
   const [showDocs, setShowDocs] = useState<boolean>(false);
   const [showBuddyBot, setShowBuddyBot] = useState<boolean>(false);
+  const [showCli, setShowCli] = useState<boolean>(false);
   
   const [repoError, setRepoError] = useState<string | null>(null);
   const [deploymentError, setDeploymentError] = useState<string | null>(null);
@@ -504,6 +516,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, token, onLogout, theme, onT
         onShowBuddyBot={() => setShowBuddyBot(true)}
         theme={theme}
         onToggleTheme={onToggleTheme}
+        onShowCli={() => setShowCli(true)}
       />
       <main className="p-4 md:p-8">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
@@ -692,6 +705,9 @@ const Dashboard: React.FC<DashboardProps> = ({ user, token, onLogout, theme, onT
             onClose={() => setShowBuddyBot(false)}
             repoContext={selectedRepo}
         />
+      )}
+      {showCli && (
+        <CliTerminal onClose={() => setShowCli(false)} />
       )}
     </div>
   );
