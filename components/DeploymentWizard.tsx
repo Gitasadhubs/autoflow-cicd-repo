@@ -1,9 +1,10 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import { Repository, TechStack, DeploymentTarget, DeploymentEnvironment, RequiredVariable, RequiredSecret } from '../types';
+// FIX: Changed import from githubService to geminiService as that's where generateWorkflow is exported from.
 import { generateWorkflow, AdvancedTriggers } from '../services/geminiService';
 import { createWorkflowFile, setRepositoryVariable, setRepositorySecret, analyzeRepository } from '../services/githubService';
 import { 
-    CheckCircleIcon, LogoIcon,
+    CheckCircleIcon, LogoIcon, CodeBracketIcon, LockClosedIcon, ArrowPathIcon, XCircleIcon,
     VercelIcon, GitHubIcon, RailwayIcon, HerokuIcon, AWSIcon
 } from './icons';
 
@@ -81,6 +82,7 @@ const DeploymentWizard: React.FC<WizardProps> = ({ repos, token, onClose, onComp
     const [requiredVariables, setRequiredVariables] = useState<RequiredVariable[]>([]);
     const [requiredSecrets, setRequiredSecrets] = useState<RequiredSecret[]>([]);
     const [variableValues, setVariableValues] = useState<Record<string, string>>({});
+    const [secretValues, setSecretValues] = useState<Record<string, string>>({});
 
     // For CLI token validation
     const [deploymentToken, setDeploymentToken] = useState('');
