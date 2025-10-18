@@ -5,6 +5,7 @@ import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
 import { GoogleGenAI, Type, HarmCategory, HarmBlockThreshold } from '@google/genai';
 import libsodium from 'libsodium-wrappers';
+import { spawn } from 'child_process';
 
 // Load environment variables from .env file
 dotenv.config();
@@ -471,15 +472,20 @@ app.post('/api/encrypt', async (req, res) => {
     try {
         await libsodium.ready;
         
+        // This 'utils' namespace contains the necessary encoding/decoding functions.
+        // It's cast to 'any' to bypass potential type inconsistencies in the library,
+        // ensuring the correct runtime functions are used.
+        const utils = libsodium.utils;
+
         // Convert the secret and key to Uint8Array
-        const secretBytes = libsodium.utils.decodeUTF8(valueToEncrypt);
-        const publicKeyBytes = libsodium.utils.decodeBase64(publicKey);
+        const secretBytes = utils.decodeUTF8(valueToEncrypt);
+        const publicKeyBytes = utils.decodeBase64(publicKey);
 
         // Encrypt the secret using libsodium
         const encryptedBytes = libsodium.crypto_box_seal(secretBytes, publicKeyBytes);
 
         // Convert the encrypted Uint8Array to a base64 string
-        const encryptedValue = libsodium.utils.encodeBase64(encryptedBytes);
+        const encryptedValue = utils.encodeBase64(encryptedBytes);
         
         res.status(200).json({ encryptedValue });
     } catch (error) {
@@ -487,6 +493,91 @@ app.post('/api/encrypt', async (req, res) => {
         res.status(500).json({ error: 'Failed to encrypt secret on the server.' });
     }
 });
+
+// --- CLI COMMAND EXECUTION --- //
+const COMMAND_ALLOWLIST = {
+    vercel: [
+        ['projects', 'list'],
+        ['domains', 'ls'],
+        ['logs'],
+        ['deployments', 'ls'],
+    ],
+    railway: [
+        ['projects'],
+        ['services'],
+        ['logs'],
+        ['status'],
+    ],
+};
+const getExecutablePath = (cli) => {
+    return path.resolve(process.cwd(), 'node_modules', '.bin', cli);
+};
+
+app.post('/api/run-cli', async (req, res) => {
+    const { command, token } = req.body;
+    if (typeof command !== 'string' || !command.trim()) {
+        return res.status(400).json({ error: 'Command must be a non-empty string.' });
+    }
+     if (typeof token !== 'string' || !token.trim()) {
+        return res.status(400).json({ error: 'A valid token must be provided.' });
+    }
+    
+    const parts = command.trim().split(/\s+/);
+    const cli = parts[0];
+    const args = parts.slice(1);
+
+    if (cli !== 'vercel' && cli !== 'railway') {
+        return res.status(400).json({ error: `Invalid CLI tool specified. Must be 'vercel' or 'railway'.` });
+    }
+
+    const isAllowed = COMMAND_ALLOWLIST[cli].some(allowedCmdParts => 
+        allowedCmdParts.every((part, index) => args[index] === part)
+    );
+
+    if (!isAllowed) {
+        return res.status(403).json({ error: `Command not allowed: '${command}'. Only specific read-only commands are permitted.` });
+    }
+    
+    const env = { ...process.env };
+    
+    if (cli === 'vercel') {
+        env.VERCEL_TOKEN = token;
+    } else if (cli === 'railway') {
+        env.RAILWAY_TOKEN = token;
+    }
+
+    try {
+        const executablePath = getExecutablePath(cli);
+        const child = spawn(executablePath, args, { env });
+
+        let stdout = '';
+        let stderr = '';
+
+        child.stdout.on('data', (data) => {
+            stdout += data.toString();
+        });
+
+        child.stderr.on('data', (data) => {
+            stderr += data.toString();
+        });
+
+        const exitCode = await new Promise((resolve) => {
+            child.on('close', resolve);
+        });
+
+        if (exitCode !== 0) {
+            return res.status(200).json({ output: stderr || `Command exited with code ${exitCode}`, error: true });
+        }
+        
+        return res.status(200).json({ output: stdout, error: false });
+
+    } catch (error) {
+        console.error(`Error executing command: ${command}`, error);
+        const message = error instanceof Error ? error.message : 'An unknown error occurred.';
+        return res.status(500).json({ error: `Server error executing command: ${message}` });
+    }
+});
+
 
 // Serve static files from the React app build directory
 app.use(express.static(path.join(__dirname, 'dist')));
