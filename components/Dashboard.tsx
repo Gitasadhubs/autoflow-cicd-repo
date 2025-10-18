@@ -1,6 +1,7 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import { User, Repository, Deployment, DeploymentStatus, WorkflowRunStatus } from '../types';
 import PipelineConfigurator from './PipelineConfigurator';
+import DeploymentWizard from './DeploymentWizard';
 import LogViewer from './LogViewer';
 import BuddyBot from './DocsChat';
 import Documentation from './Documentation';
@@ -9,7 +10,8 @@ import {
     CheckCircleIcon, XCircleIcon, ArrowPathIcon, CodeBracketIcon, LockClosedIcon, 
     StopCircleIcon, LogoIcon, QuestionMarkCircleIcon, ChatBubbleOvalLeftIcon, SunIcon, MoonIcon, MagnifyingGlassIcon, BranchIcon,
     PencilIcon,
-    CommandLineIcon
+    CommandLineIcon,
+    PlusCircleIcon
 } from './icons';
 import { getRepos, getDeploymentsForRepo, hasWorkflows, getLatestWorkflowRun, rerunWorkflow, rerunFailedJobs, triggerRedeployment, cancelWorkflowRun } from '../services/githubService';
 
@@ -292,6 +294,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, token, onLogout, theme, onT
   const [showDocs, setShowDocs] = useState<boolean>(false);
   const [showBuddyBot, setShowBuddyBot] = useState<boolean>(false);
   const [showCli, setShowCli] = useState<boolean>(false);
+  const [isWizardOpen, setIsWizardOpen] = useState(false);
   
   const [repoError, setRepoError] = useState<string | null>(null);
   const [deploymentError, setDeploymentError] = useState<string | null>(null);
@@ -474,24 +477,19 @@ const Dashboard: React.FC<DashboardProps> = ({ user, token, onLogout, theme, onT
     }
   }, [selectedRepo, token, fetchDeployments]);
   
-  const handlePipelineConfigured = useCallback((repoId: number) => {
-    let configuredRepo: Repository | undefined;
-    setRepositories(prev => {
-        const newRepos = prev.map(r => {
-            if (r.id === repoId) {
-                configuredRepo = { ...r, has_workflows: true };
-                return configuredRepo;
-            }
-            return r;
-        });
-        return newRepos;
-    });
-
+  const handleWorkflowUpdate = useCallback((repoId: number) => {
+    fetchRepos(false); // Silently refresh repo list
+    const configuredRepo = repositories.find(r => r.id === repoId);
     if (configuredRepo) {
-        setSelectedRepo(configuredRepo);
-        fetchDeployments(configuredRepo);
+        // If the configured repo is not the selected one, select it
+        if (selectedRepo?.id !== repoId) {
+            handleRepoSelect(configuredRepo);
+        }
+    } else {
+        // If repo is not in the list (e.g., from wizard), we just refresh.
+        // It will appear and be selectable.
     }
-  }, [fetchDeployments]);
+  }, [fetchRepos, repositories, handleRepoSelect, selectedRepo]);
 
   const handleConfigure = (repo: Repository) => {
     setConfigRepo(repo);
@@ -524,15 +522,25 @@ const Dashboard: React.FC<DashboardProps> = ({ user, token, onLogout, theme, onT
           <div className="space-y-6">
             <div className="flex justify-between items-center">
               <h2 className="text-3xl font-bold text-gray-900 dark:text-gray-100">Your Repositories</h2>
-              <button
-                onClick={() => fetchRepos()}
-                disabled={loadingRepos}
-                className="flex items-center bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-800 dark:text-white font-semibold py-2 px-4 rounded-lg transition duration-300 disabled:opacity-50 disabled:cursor-wait"
-                title="Refresh repository list"
-              >
-                <ArrowPathIcon className={`w-5 h-5 mr-2 ${loadingRepos ? 'animate-spin' : ''}`} />
-                Refresh
-              </button>
+              <div className="flex items-center space-x-2">
+                <button
+                    onClick={() => setIsWizardOpen(true)}
+                    className="flex items-center bg-brand-primary hover:bg-brand-dark text-white font-semibold py-2 px-4 rounded-lg transition duration-300"
+                    title="Start a new deployment pipeline"
+                >
+                    <PlusCircleIcon className="w-5 h-5 mr-2" />
+                    New Deployment
+                </button>
+                <button
+                  onClick={() => fetchRepos()}
+                  disabled={loadingRepos}
+                  className="flex items-center bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-800 dark:text-white font-semibold py-2 px-4 rounded-lg transition duration-300 disabled:opacity-50 disabled:cursor-wait"
+                  title="Refresh repository list"
+                >
+                  <ArrowPathIcon className={`w-5 h-5 mr-2 ${loadingRepos ? 'animate-spin' : ''}`} />
+                  Refresh
+                </button>
+              </div>
             </div>
             
             <div className="relative">
@@ -691,8 +699,19 @@ const Dashboard: React.FC<DashboardProps> = ({ user, token, onLogout, theme, onT
             token={token}
             mode={configMode}
             onClose={() => setConfigRepo(null)} 
-            onPipelineConfigured={handlePipelineConfigured}
+            onPipelineConfigured={() => handleWorkflowUpdate(configRepo.id)}
         />
+      )}
+      {isWizardOpen && (
+          <DeploymentWizard
+            repos={repositories.filter(r => r.permissions?.push)}
+            token={token}
+            onClose={() => setIsWizardOpen(false)}
+            onComplete={(repoId) => {
+                setIsWizardOpen(false);
+                handleWorkflowUpdate(repoId);
+            }}
+          />
       )}
       {viewingLogs && (
         <LogViewer deployment={viewingLogs} onClose={() => setViewingLogs(null)} />
