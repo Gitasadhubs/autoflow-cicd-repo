@@ -5,7 +5,7 @@ import { createWorkflowFile, setRepositoryVariable, setRepositorySecret, getWork
 import { 
     ClipboardIcon, ClipboardCheckIcon, CodeBracketIcon, CheckCircleIcon, LockClosedIcon, 
     EyeIcon, EyeSlashIcon, LogoIcon, ArrowPathIcon, XCircleIcon, XCircleIcon as XIcon,
-    VercelIcon, GitHubIcon, RailwayIcon, HerokuIcon, AWSIcon
+    VercelIcon, GitHubIcon, RailwayIcon, HerokuIcon, AWSIcon, DocumentArrowUpIcon
 } from './icons';
 
 interface PipelineConfiguratorProps {
@@ -50,6 +50,7 @@ const templates: WorkflowTemplate[] = [
     { id: 'node-railway', name: 'Node.js to Railway', description: 'Deploy a Node.js Express server to Railway.', techStack: TechStack.NodeJS, deploymentTarget: DeploymentTarget.Railway, icon: RailwayIcon },
     { id: 'python-heroku', name: 'Python to Heroku', description: 'Deploy a Python (Flask/Django) app to Heroku.', techStack: TechStack.Python, deploymentTarget: DeploymentTarget.Heroku, icon: HerokuIcon },
     { id: 'node-aws-eb', name: 'Node.js to AWS EB', description: 'Deploy a Node.js app to AWS Elastic Beanstalk.', techStack: TechStack.NodeJS, deploymentTarget: DeploymentTarget.AWSElasticBeanstalk, icon: AWSIcon },
+    { id: 'import', name: 'Import from File', description: 'Use your own existing workflow .yml file.', techStack: TechStack.Static, deploymentTarget: DeploymentTarget.GitHubPages, icon: DocumentArrowUpIcon },
     { id: 'custom', name: 'Custom Pipeline', description: 'Manually configure stack and deployment target.', techStack: TechStack.React, deploymentTarget: DeploymentTarget.Vercel, icon: CodeBracketIcon } // Dummy values for custom
 ];
 
@@ -138,6 +139,8 @@ const PipelineConfigurator: React.FC<PipelineConfiguratorProps> = ({ repo, token
   const [workflowFilePath, setWorkflowFilePath] = useState<string | null>(null);
   const [isInitialLoading, setIsInitialLoading] = useState<boolean>(mode === 'edit');
 
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
 
   useEffect(() => {
     // Pre-fill variable values with defaults when they are loaded
@@ -151,15 +154,17 @@ const PipelineConfigurator: React.FC<PipelineConfiguratorProps> = ({ repo, token
     useEffect(() => {
         if (mode === 'create') {
             const selected = templates.find(t => t.id === selectedTemplateId);
-            if (selected && selected.id !== 'custom') {
+            if (selected && selected.id !== 'custom' && selected.id !== 'import') {
                 setTechStack(selected.techStack);
                 setDeploymentTarget(selected.deploymentTarget);
             }
-            setGeneratedYaml('');
-            setRequiredVariables([]);
-            setRequiredSecrets([]);
-            setVariableValues({});
-            setSecretValues({});
+            if (selectedTemplateId !== 'import') {
+                setGeneratedYaml('');
+                setRequiredVariables([]);
+                setRequiredSecrets([]);
+                setVariableValues({});
+                setSecretValues({});
+            }
             setGenerationError(null);
             setIsCommitting(false);
             setCommitProgress(initialCommitProgress);
@@ -407,11 +412,82 @@ const PipelineConfigurator: React.FC<PipelineConfiguratorProps> = ({ repo, token
     runSteps(step);
   }, [runSteps]);
 
+  const parseYamlForVariablesAndSecrets = (yamlContent: string) => {
+    const secretRegex = /\${{\s*secrets\.([A-Z0-9_]+)\s*}}/g;
+    const varRegex = /\${{\s*vars\.([A-Z0-9_]+)\s*}}/g;
+
+    const foundSecretNames = new Set<string>();
+    const foundVarNames = new Set<string>();
+
+    let match;
+    while ((match = secretRegex.exec(yamlContent)) !== null) {
+        // Avoid adding built-in secrets like GITHUB_TOKEN
+        if (match[1] !== 'GITHUB_TOKEN') {
+            foundSecretNames.add(match[1]);
+        }
+    }
+
+    while ((match = varRegex.exec(yamlContent)) !== null) {
+        foundVarNames.add(match[1]);
+    }
+
+    const secrets: RequiredSecret[] = Array.from(foundSecretNames).map(name => ({
+        name,
+        description: 'Secret detected from imported workflow file.',
+    }));
+
+    const variables: RequiredVariable[] = Array.from(foundVarNames).map(name => ({
+        name,
+        description: 'Variable detected from imported workflow file.',
+        defaultValue: '',
+    }));
+
+    return { secrets, variables };
+  };
+
+  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+        const content = e.target?.result as string;
+        if (content) {
+            setGeneratedYaml(content);
+            const { secrets, variables } = parseYamlForVariablesAndSecrets(content);
+            setRequiredSecrets(secrets);
+            setRequiredVariables(variables);
+            setGenerationError(null);
+        } else {
+            setGenerationError("Could not read the selected file. It might be empty or corrupted.");
+        }
+    };
+    reader.onerror = () => {
+        setGenerationError("An error occurred while reading the file.");
+    };
+    reader.readAsText(file);
+  };
+  
+  const handleTemplateClick = (templateId: string) => {
+    if (templateId === 'import') {
+        fileInputRef.current?.click();
+    }
+    setSelectedTemplateId(templateId);
+  };
+
   const targetBranch = deploymentEnvironment === DeploymentEnvironment.Production ? 'main' : 'staging';
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center p-4 z-50">
       <div className="bg-light-surface dark:bg-brand-surface rounded-xl shadow-2xl w-full max-w-3xl transform transition-all animate-scale-up border border-gray-200 dark:border-gray-700">
+        <input
+            type="file"
+            ref={fileInputRef}
+            onChange={handleFileChange}
+            accept=".yml,.yaml"
+            className="hidden"
+            aria-hidden="true"
+        />
         <div className="p-6 border-b border-gray-200 dark:border-gray-700">
           <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100">{mode === 'edit' ? 'Edit Pipeline' : 'Configure Pipeline'}</h2>
           <p className="text-gray-600 dark:text-gray-400 mt-1">For repository: <span className="font-semibold text-brand-primary">{repo.full_name}</span></p>
@@ -428,12 +504,12 @@ const PipelineConfigurator: React.FC<PipelineConfiguratorProps> = ({ repo, token
               {(mode === 'create' && !generatedYaml) && (
                  <>
                   <fieldset className="p-4 border border-gray-300 dark:border-gray-700 rounded-lg">
-                    <legend className="text-sm font-medium text-gray-700 dark:text-gray-300 px-2">Choose a Template</legend>
-                    <div className="grid grid-cols-2 md:grid-cols-3 gap-3 pt-2">
+                    <legend className="text-sm font-medium text-gray-700 dark:text-gray-300 px-2">Choose a Method</legend>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3 pt-2">
                         {templates.map(template => (
                             <button
                                 key={template.id}
-                                onClick={() => setSelectedTemplateId(template.id)}
+                                onClick={() => handleTemplateClick(template.id)}
                                 className={`p-3 text-left rounded-lg transition-all duration-200 flex flex-col justify-between h-full ${selectedTemplateId === template.id 
                                     ? 'ring-2 ring-brand-primary bg-brand-primary/10 dark:bg-brand-primary/20' 
                                     : 'ring-1 ring-gray-300 dark:ring-gray-600 hover:ring-brand-secondary dark:hover:ring-brand-secondary bg-gray-50/50 dark:bg-gray-800/50'
@@ -451,119 +527,122 @@ const PipelineConfigurator: React.FC<PipelineConfiguratorProps> = ({ repo, token
                     </div>
                   </fieldset>
                   
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                      {selectedTemplateId === 'custom' && (
-                        <>
-                            <div>
-                            <label htmlFor="tech-stack" className="block text-sm font-medium text-gray-800 dark:text-gray-300 mb-1">Tech Stack</label>
+                  {selectedTemplateId !== 'import' && (
+                    <>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        {selectedTemplateId === 'custom' && (
+                            <>
+                                <div>
+                                <label htmlFor="tech-stack" className="block text-sm font-medium text-gray-800 dark:text-gray-300 mb-1">Tech Stack</label>
+                                <select 
+                                    id="tech-stack"
+                                    value={techStack}
+                                    onChange={(e) => setTechStack(e.target.value as TechStack)}
+                                    className="w-full bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-200 text-sm rounded-lg focus:ring-brand-primary focus:border-brand-primary block p-2.5 placeholder-gray-500 dark:placeholder-gray-400"
+                                >
+                                    {Object.values(TechStack).map(ts => <option key={ts} value={ts}>{ts}</option>)}
+                                </select>
+                                </div>
+                                <div>
+                                <label htmlFor="deployment-target" className="block text-sm font-medium text-gray-800 dark:text-gray-300 mb-1">Deployment Target</label>
+                                <select 
+                                    id="deployment-target"
+                                    value={deploymentTarget}
+                                    onChange={(e) => setDeploymentTarget(e.target.value as DeploymentTarget)}
+                                    className="w-full bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-200 text-sm rounded-lg focus:ring-brand-primary focus:border-brand-primary block p-2.5 placeholder-gray-500 dark:placeholder-gray-400"
+                                >
+                                    {Object.values(DeploymentTarget).map(dt => <option key={dt} value={dt}>{dt}</option>)}
+                                </select>
+                                </div>
+                            </>
+                        )}
+                        <div className={selectedTemplateId === 'custom' ? '' : 'col-start-1'}>
+                            <label htmlFor="deployment-environment" className="block text-sm font-medium text-gray-800 dark:text-gray-300 mb-1">Environment</label>
                             <select 
-                                id="tech-stack"
-                                value={techStack}
-                                onChange={(e) => setTechStack(e.target.value as TechStack)}
+                                id="deployment-environment"
+                                value={deploymentEnvironment}
+                                onChange={(e) => setDeploymentEnvironment(e.target.value as DeploymentEnvironment)}
                                 className="w-full bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-200 text-sm rounded-lg focus:ring-brand-primary focus:border-brand-primary block p-2.5 placeholder-gray-500 dark:placeholder-gray-400"
                             >
-                                {Object.values(TechStack).map(ts => <option key={ts} value={ts}>{ts}</option>)}
+                                {Object.values(DeploymentEnvironment).map(de => <option key={de} value={de}>{de}</option>)}
                             </select>
-                            </div>
-                            <div>
-                            <label htmlFor="deployment-target" className="block text-sm font-medium text-gray-800 dark:text-gray-300 mb-1">Deployment Target</label>
-                            <select 
-                                id="deployment-target"
-                                value={deploymentTarget}
-                                onChange={(e) => setDeploymentTarget(e.target.value as DeploymentTarget)}
-                                className="w-full bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-200 text-sm rounded-lg focus:ring-brand-primary focus:border-brand-primary block p-2.5 placeholder-gray-500 dark:placeholder-gray-400"
-                            >
-                                {Object.values(DeploymentTarget).map(dt => <option key={dt} value={dt}>{dt}</option>)}
-                            </select>
-                            </div>
-                        </>
-                      )}
-                      <div className={selectedTemplateId === 'custom' ? '' : 'col-start-1'}>
-                        <label htmlFor="deployment-environment" className="block text-sm font-medium text-gray-800 dark:text-gray-300 mb-1">Environment</label>
-                        <select 
-                            id="deployment-environment"
-                            value={deploymentEnvironment}
-                            onChange={(e) => setDeploymentEnvironment(e.target.value as DeploymentEnvironment)}
-                            className="w-full bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-200 text-sm rounded-lg focus:ring-brand-primary focus:border-brand-primary block p-2.5 placeholder-gray-500 dark:placeholder-gray-400"
-                        >
-                            {Object.values(DeploymentEnvironment).map(de => <option key={de} value={de}>{de}</option>)}
-                        </select>
-                      </div>
-                  </div>
-
-
-                   <fieldset className="p-4 border border-gray-300 dark:border-gray-700 rounded-lg">
-                    <legend className="text-sm font-medium text-gray-700 dark:text-gray-300 px-2">Workflow Triggers</legend>
-                    <div className="pt-2 space-y-4">
-                        {/* Push Trigger */}
-                        <div>
-                            <div className="flex items-center">
-                                <input id="trigger-push" type="checkbox" checked={pushConfig.enabled} onChange={e => setPushConfig(p => ({ ...p, enabled: e.target.checked }))} className="h-4 w-4 rounded border-gray-300 dark:border-gray-600 text-brand-primary focus:ring-brand-secondary bg-gray-100 dark:bg-gray-900" />
-                                <label htmlFor="trigger-push" className="ml-3 text-sm text-gray-800 dark:text-gray-300">
-                                    On push to branches
-                                </label>
-                            </div>
-                            {pushConfig.enabled && (
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-2 mt-2 pl-7 text-xs">
-                                    <input type="text" value={pushConfig.branches} onChange={e => setPushConfig(p => ({ ...p, branches: e.target.value }))} className="w-full font-mono bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-200 rounded-lg focus:ring-brand-primary focus:border-brand-primary block p-2 placeholder-gray-400 dark:placeholder-gray-500" placeholder={`e.g., ${targetBranch}, feature/*`} />
-                                    <input type="text" value={pushConfig.branchesIgnore} onChange={e => setPushConfig(p => ({ ...p, branchesIgnore: e.target.value }))} className="w-full font-mono bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-200 rounded-lg focus:ring-brand-primary focus:border-brand-primary block p-2 placeholder-gray-400 dark:placeholder-gray-500" placeholder="Branches to ignore, e.g., docs/*" />
-                                </div>
-                            )}
-                        </div>
-                        {/* Pull Request Trigger */}
-                        <div>
-                            <div className="flex items-center">
-                                <input id="trigger-pr" type="checkbox" checked={pullRequestConfig.enabled} onChange={e => setPullRequestConfig(p => ({ ...p, enabled: e.target.checked }))} className="h-4 w-4 rounded border-gray-300 dark:border-gray-600 text-brand-primary focus:ring-brand-secondary bg-gray-100 dark:bg-gray-900" />
-                                <label htmlFor="trigger-pr" className="ml-3 text-sm text-gray-800 dark:text-gray-300">
-                                    On pull request to branches
-                                </label>
-                            </div>
-                            {pullRequestConfig.enabled && (
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-2 mt-2 pl-7 text-xs">
-                                   <input type="text" value={pullRequestConfig.branches} onChange={e => setPullRequestConfig(p => ({ ...p, branches: e.target.value }))} className="w-full font-mono bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-200 rounded-lg focus:ring-brand-primary focus:border-brand-primary block p-2 placeholder-gray-400 dark:placeholder-gray-500" placeholder={`e.g., ${targetBranch}`} />
-                                   <input type="text" value={pullRequestConfig.branchesIgnore} onChange={e => setPullRequestConfig(p => ({ ...p, branchesIgnore: e.target.value }))} className="w-full font-mono bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-200 rounded-lg focus:ring-brand-primary focus:border-brand-primary block p-2 placeholder-gray-400 dark:placeholder-gray-500" placeholder="Branches to ignore" />
-                                </div>
-                            )}
-                        </div>
-                        {/* Schedule Trigger */}
-                        <div>
-                            <div className="flex items-center">
-                                <input id="trigger-schedule" type="checkbox" checked={scheduleConfig.enabled} onChange={e => setScheduleConfig(p => ({...p, enabled: e.target.checked}))} className="h-4 w-4 rounded border-gray-300 dark:border-gray-600 text-brand-primary focus:ring-brand-secondary bg-gray-100 dark:bg-gray-900" />
-                                <label htmlFor="trigger-schedule" className="ml-3 text-sm text-gray-800 dark:text-gray-300">On a schedule (cron syntax)</label>
-                            </div>
-                            {scheduleConfig.enabled && (
-                                <div className="mt-2 pl-7 space-y-2">
-                                    {scheduleConfig.crons.map((cron, index) => (
-                                        <div key={index} className="flex items-center gap-2">
-                                            <input type="text" value={cron} onChange={e => handleCronChange(index, e.target.value)} className="flex-grow font-mono bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-200 text-sm rounded-lg focus:ring-brand-primary focus:border-brand-primary block p-2 placeholder-gray-400" placeholder="e.g., '0 8 * * 1-5'" />
-                                            {scheduleConfig.crons.length > 1 && (
-                                                <button onClick={() => removeCron(index)} className="p-1.5 text-red-500 hover:bg-red-500/10 rounded-full" aria-label="Remove schedule"><XIcon className="h-4 w-4" /></button>
-                                            )}
-                                        </div>
-                                    ))}
-                                     <div className="flex items-center justify-between">
-                                       <button onClick={addCron} className="text-xs text-brand-secondary hover:underline font-semibold">+ Add another schedule</button>
-                                       <a href="https://crontab.guru/" target="_blank" rel="noopener noreferrer" className="text-xs text-brand-secondary hover:underline whitespace-nowrap">
-                                        cron help
-                                       </a>
-                                   </div>
-                                </div>
-                            )}
                         </div>
                     </div>
-                  </fieldset>
-                  
-                  <button
-                    onClick={handleGenerate}
-                    disabled={isLoading || isCommitting}
-                    className="w-full flex items-center justify-center bg-brand-primary hover:bg-brand-dark text-white font-bold py-2.5 px-4 rounded-lg transition duration-300 disabled:bg-gray-400 dark:disabled:bg-gray-600 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-light-surface dark:focus:ring-offset-brand-surface focus:ring-brand-secondary"
-                  >
-                    {isLoading ? (
-                      <><LogoIcon className="h-5 w-5 mr-2 animate-rocket-float" />{loadingMessage}</>
-                    ) : (
-                      <><CodeBracketIcon className="h-5 w-5 mr-2" />Generate Workflow File</>
-                    )}
-                  </button>
+
+                    <fieldset className="p-4 border border-gray-300 dark:border-gray-700 rounded-lg">
+                        <legend className="text-sm font-medium text-gray-700 dark:text-gray-300 px-2">Workflow Triggers</legend>
+                        <div className="pt-2 space-y-4">
+                            {/* Push Trigger */}
+                            <div>
+                                <div className="flex items-center">
+                                    <input id="trigger-push" type="checkbox" checked={pushConfig.enabled} onChange={e => setPushConfig(p => ({ ...p, enabled: e.target.checked }))} className="h-4 w-4 rounded border-gray-300 dark:border-gray-600 text-brand-primary focus:ring-brand-secondary bg-gray-100 dark:bg-gray-900" />
+                                    <label htmlFor="trigger-push" className="ml-3 text-sm text-gray-800 dark:text-gray-300">
+                                        On push to branches
+                                    </label>
+                                </div>
+                                {pushConfig.enabled && (
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-2 mt-2 pl-7 text-xs">
+                                        <input type="text" value={pushConfig.branches} onChange={e => setPushConfig(p => ({ ...p, branches: e.target.value }))} className="w-full font-mono bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-200 rounded-lg focus:ring-brand-primary focus:border-brand-primary block p-2 placeholder-gray-400 dark:placeholder-gray-500" placeholder={`e.g., ${targetBranch}, feature/*`} />
+                                        <input type="text" value={pushConfig.branchesIgnore} onChange={e => setPushConfig(p => ({ ...p, branchesIgnore: e.target.value }))} className="w-full font-mono bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-200 rounded-lg focus:ring-brand-primary focus:border-brand-primary block p-2 placeholder-gray-400 dark:placeholder-gray-500" placeholder="Branches to ignore, e.g., docs/*" />
+                                    </div>
+                                )}
+                            </div>
+                            {/* Pull Request Trigger */}
+                            <div>
+                                <div className="flex items-center">
+                                    <input id="trigger-pr" type="checkbox" checked={pullRequestConfig.enabled} onChange={e => setPullRequestConfig(p => ({ ...p, enabled: e.target.checked }))} className="h-4 w-4 rounded border-gray-300 dark:border-gray-600 text-brand-primary focus:ring-brand-secondary bg-gray-100 dark:bg-gray-900" />
+                                    <label htmlFor="trigger-pr" className="ml-3 text-sm text-gray-800 dark:text-gray-300">
+                                        On pull request to branches
+                                    </label>
+                                </div>
+                                {pullRequestConfig.enabled && (
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-2 mt-2 pl-7 text-xs">
+                                    <input type="text" value={pullRequestConfig.branches} onChange={e => setPullRequestConfig(p => ({ ...p, branches: e.target.value }))} className="w-full font-mono bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-200 rounded-lg focus:ring-brand-primary focus:border-brand-primary block p-2 placeholder-gray-400 dark:placeholder-gray-500" placeholder={`e.g., ${targetBranch}`} />
+                                    <input type="text" value={pullRequestConfig.branchesIgnore} onChange={e => setPullRequestConfig(p => ({ ...p, branchesIgnore: e.target.value }))} className="w-full font-mono bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-200 rounded-lg focus:ring-brand-primary focus:border-brand-primary block p-2 placeholder-gray-400 dark:placeholder-gray-500" placeholder="Branches to ignore" />
+                                    </div>
+                                )}
+                            </div>
+                            {/* Schedule Trigger */}
+                            <div>
+                                <div className="flex items-center">
+                                    <input id="trigger-schedule" type="checkbox" checked={scheduleConfig.enabled} onChange={e => setScheduleConfig(p => ({...p, enabled: e.target.checked}))} className="h-4 w-4 rounded border-gray-300 dark:border-gray-600 text-brand-primary focus:ring-brand-secondary bg-gray-100 dark:bg-gray-900" />
+                                    <label htmlFor="trigger-schedule" className="ml-3 text-sm text-gray-800 dark:text-gray-300">On a schedule (cron syntax)</label>
+                                </div>
+                                {scheduleConfig.enabled && (
+                                    <div className="mt-2 pl-7 space-y-2">
+                                        {scheduleConfig.crons.map((cron, index) => (
+                                            <div key={index} className="flex items-center gap-2">
+                                                <input type="text" value={cron} onChange={e => handleCronChange(index, e.target.value)} className="flex-grow font-mono bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-200 text-sm rounded-lg focus:ring-brand-primary focus:border-brand-primary block p-2 placeholder-gray-400" placeholder="e.g., '0 8 * * 1-5'" />
+                                                {scheduleConfig.crons.length > 1 && (
+                                                    <button onClick={() => removeCron(index)} className="p-1.5 text-red-500 hover:bg-red-500/10 rounded-full" aria-label="Remove schedule"><XIcon className="h-4 w-4" /></button>
+                                                )}
+                                            </div>
+                                        ))}
+                                        <div className="flex items-center justify-between">
+                                        <button onClick={addCron} className="text-xs text-brand-secondary hover:underline font-semibold">+ Add another schedule</button>
+                                        <a href="https://crontab.guru/" target="_blank" rel="noopener noreferrer" className="text-xs text-brand-secondary hover:underline whitespace-nowrap">
+                                            cron help
+                                        </a>
+                                    </div>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    </fieldset>
+                    
+                    <button
+                        onClick={handleGenerate}
+                        disabled={isLoading || isCommitting}
+                        className="w-full flex items-center justify-center bg-brand-primary hover:bg-brand-dark text-white font-bold py-2.5 px-4 rounded-lg transition duration-300 disabled:bg-gray-400 dark:disabled:bg-gray-600 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-light-surface dark:focus:ring-offset-brand-surface focus:ring-brand-secondary"
+                    >
+                        {isLoading ? (
+                        <><LogoIcon className="h-5 w-5 mr-2 animate-rocket-float" />{loadingMessage}</>
+                        ) : (
+                        <><CodeBracketIcon className="h-5 w-5 mr-2" />Generate Workflow File</>
+                        )}
+                    </button>
+                    </>
+                  )}
                  </>
               )}
 

@@ -22,14 +22,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         // errors and use the correct runtime functions, aligning this with the local dev server.
         const utils = (libsodium as any).utils;
 
-        const secretBytes = utils.decode_utf8(valueToEncrypt);
-        const publicKeyBytes = utils.decode_base64(publicKey);
+        const secretBytes = utils.decodeUTF8(valueToEncrypt);
+        const publicKeyBytes = utils.decodeBase64(publicKey);
 
         // Encrypt the secret using libsodium
         const encryptedBytes = libsodium.crypto_box_seal(secretBytes, publicKeyBytes);
 
         // Convert the encrypted Uint8Array to a base64 string
-        const encryptedValue = utils.encode_base64(encryptedBytes);
+        const encryptedValue = utils.encodeBase64(encryptedBytes);
 
         return res.status(200).json({ encryptedValue });
     } catch (error) {

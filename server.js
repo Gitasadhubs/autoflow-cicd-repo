@@ -215,7 +215,7 @@ const generateWorkflowLogic = async ({
     const systemInstruction = `You are an expert DevOps engineer specializing in GitHub Actions. Your sole purpose is to generate clean, correct, and complete YAML configuration files and associated non-sensitive variables and sensitive secrets. You ONLY respond with a single, raw JSON object. Do not include any introductory text, explanations, or markdown formatting like \`\`\`json. Your entire response must be parsable as JSON.`;
 
     const generationPromise = ai.models.generateContent({
-      model: "gemini-2.5-flash",
+      model: "gemini-2.5-pro",
       contents: prompt,
       config: {
         systemInstruction,
