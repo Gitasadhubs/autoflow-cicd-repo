@@ -472,20 +472,16 @@ app.post('/api/encrypt', async (req, res) => {
     try {
         await libsodium.ready;
         
-        // This 'utils' namespace contains the necessary encoding/decoding functions.
-        // It's cast to 'any' to bypass potential type inconsistencies in the library,
-        // ensuring the correct runtime functions are used.
-        const utils = libsodium.utils;
+        // FIX: Use Node.js's native Buffer for robust encoding, avoiding inconsistencies
+        // with the libsodium.utils helper module in different environments.
+        const secretBytes = Buffer.from(valueToEncrypt, 'utf8');
+        const publicKeyBytes = Buffer.from(publicKey, 'base64');
 
-        // Convert the secret and key to Uint8Array
-        const secretBytes = utils.decodeUTF8(valueToEncrypt);
-        const publicKeyBytes = utils.decodeBase64(publicKey);
-
-        // Encrypt the secret using libsodium
+        // Encrypt the secret using libsodium. It expects Uint8Array, and Buffer is a subclass.
         const encryptedBytes = libsodium.crypto_box_seal(secretBytes, publicKeyBytes);
 
-        // Convert the encrypted Uint8Array to a base64 string
-        const encryptedValue = utils.encodeBase64(encryptedBytes);
+        // Convert the encrypted Uint8Array back to a base64 string for the GitHub API.
+        const encryptedValue = Buffer.from(encryptedBytes).toString('base64');
         
         res.status(200).json({ encryptedValue });
     } catch (error) {

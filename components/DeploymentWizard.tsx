@@ -146,7 +146,7 @@ const DeploymentWizard: React.FC<WizardProps> = ({ repos, token, onClose, onComp
         
         let command: string;
         if (selectedTarget === DeploymentTarget.Vercel) command = 'vercel projects list';
-        else if (selectedTarget === DeploymentTarget.Railway) command = 'railway projects';
+        else if (selectedTarget === DeploymentTarget.Railway) command = 'railway projects --non-interactive';
         else return;
 
         setIsTokenValidating(true);
