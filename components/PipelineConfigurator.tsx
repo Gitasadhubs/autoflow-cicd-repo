@@ -148,7 +148,7 @@ const PipelineConfigurator: React.FC<PipelineConfiguratorProps> = ({ repo, token
   const highlightWithLineNumbers = (code: string) =>
     Prism.highlight(code, Prism.languages.yaml, 'yaml')
         .split('\n')
-        .map((line) => `<span class="line-content">${line}</span>`)
+        .map((line: string) => `<span class="line-content">${line}</span>`)
         .join('\n');
 
 

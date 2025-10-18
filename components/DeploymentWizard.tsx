@@ -3,7 +3,7 @@ import { Repository, TechStack, DeploymentTarget, DeploymentEnvironment, Require
 import { generateWorkflow, AdvancedTriggers } from '../services/geminiService';
 import { createWorkflowFile, setRepositoryVariable, setRepositorySecret, analyzeRepository } from '../services/githubService';
 import { 
-    CodeBracketIcon, CheckCircleIcon, LockClosedIcon, LogoIcon, ArrowPathIcon, XCircleIcon,
+    CheckCircleIcon, LogoIcon,
     VercelIcon, GitHubIcon, RailwayIcon, HerokuIcon, AWSIcon
 } from './icons';
 
@@ -81,7 +81,6 @@ const DeploymentWizard: React.FC<WizardProps> = ({ repos, token, onClose, onComp
     const [requiredVariables, setRequiredVariables] = useState<RequiredVariable[]>([]);
     const [requiredSecrets, setRequiredSecrets] = useState<RequiredSecret[]>([]);
     const [variableValues, setVariableValues] = useState<Record<string, string>>({});
-    const [secretValues, setSecretValues] = useState<Record<string, string>>({});
 
     // For CLI token validation
     const [deploymentToken, setDeploymentToken] = useState('');
@@ -191,7 +190,7 @@ const DeploymentWizard: React.FC<WizardProps> = ({ repos, token, onClose, onComp
             await Promise.all(varPromises);
 
             // 3. Set secrets (including validated deployment token)
-            const allSecrets = { ...secretValues };
+            const allSecrets: Record<string, string> = {};
             const deploymentSecret = requiredSecrets.find(s => s.name.includes('TOKEN'));
             if (deploymentSecret && deploymentToken) {
                 allSecrets[deploymentSecret.name] = deploymentToken;
