@@ -12,5 +12,16 @@ export default defineConfig({
         changeOrigin: true,
       },
     }
+  },
+  build: {
+    rollupOptions: {
+      // Don't bundle CDN-imported libraries
+      external: [
+        'react-simple-code-editor',
+        'prismjs',
+        // Match any sub-path of prismjs, e.g., 'prismjs/components/prism-yaml.js'
+        /^prismjs\// 
+      ]
+    }
   }
 })
