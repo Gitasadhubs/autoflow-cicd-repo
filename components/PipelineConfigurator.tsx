@@ -8,7 +8,7 @@ import Prism from 'prismjs';
 import 'prismjs/components/prism-yaml.js';
 import { 
     ClipboardIcon, ClipboardCheckIcon, CodeBracketIcon, CheckCircleIcon, LockClosedIcon, 
-    EyeIcon, EyeSlashIcon, LogoIcon, ArrowPathIcon, XCircleIcon, XCircleIcon as XIcon,
+    EyeIcon, EyeSlashIcon, LogoIcon, ArrowPathIcon, XCircleIcon as XIcon,
     VercelIcon, GitHubIcon, RailwayIcon, HerokuIcon, AWSIcon, DocumentArrowUpIcon
 } from './icons';
 
@@ -83,7 +83,7 @@ const ProgressItem: React.FC<{
             textColor = 'text-gray-800 dark:text-gray-200';
             break;
         case 'error':
-            icon = <XCircleIcon className="h-4 w-4 text-red-500 dark:text-red-400" />;
+            icon = <XIcon className="h-4 w-4 text-red-500 dark:text-red-400" />;
             textColor = 'text-red-500 dark:text-red-400';
             break;
         default: // 'pending'
