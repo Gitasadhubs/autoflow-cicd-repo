@@ -1,0 +1,7 @@
+{
+  "name": "autoflow",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "AutoFlow: A web-based platform to automate code deployment."
+}
