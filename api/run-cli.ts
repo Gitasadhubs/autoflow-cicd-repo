@@ -1,3 +1,9 @@
+// FIX: Add a triple-slash directive to include Node.js type definitions.
+// This resolves TypeScript errors for the 'process' global object and its 
+// properties like 'cwd', which are available in the Vercel serverless 
+// (Node.js) environment.
+/// <reference types="node" />
+
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { spawn } from 'child_process';
 import path from 'path';

@@ -1,3 +1,9 @@
+// FIX: Add a triple-slash directive to include Node.js type definitions. 
+// This resolves TypeScript errors for the 'Buffer' global, which is available 
+// in the Vercel serverless (Node.js) environment but may not be recognized by 
+// the type checker without this explicit reference.
+/// <reference types="node" />
+
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import libsodium from 'libsodium-wrappers';
 
