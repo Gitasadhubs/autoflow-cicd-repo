@@ -1,5 +1,5 @@
 {
-  "name": "DevJoke Generator",
-  "description": "A simple React application that fetches and displays programming jokes, built to demonstrate CI/CD automation with AutoFlow.",
+  "name": "AutoFlow",
+  "description": "A web-based platform that allows student developers to automate their code deployment process using GitHub",
   "requestFramePermissions": []
 }

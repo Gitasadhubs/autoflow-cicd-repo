@@ -1,71 +1,101 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import JokeCard, { Joke } from './components/JokeCard';
+import LoginPage from './components/LoginPage';
+import Dashboard from './components/Dashboard';
+import { getUser } from './services/githubService';
+import { User } from './types';
 
-const API_URL = 'https://official-joke-api.appspot.com/random_joke';
+// Custom hook to manage theme persistence in localStorage
+const useTheme = (): ['light' | 'dark', () => void] => {
+  const [theme, setTheme] = useState<'light' | 'dark'>(() => {
+    const storedTheme = localStorage.getItem('autoflow-theme');
+    if (storedTheme) {
+      return storedTheme as 'light' | 'dark';
+    }
+    // Fallback to user's system preference
+    return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+  });
+
+  useEffect(() => {
+    const root = window.document.documentElement;
+    if (theme === 'dark') {
+      root.classList.add('dark');
+    } else {
+      root.classList.remove('dark');
+    }
+    localStorage.setItem('autoflow-theme', theme);
+  }, [theme]);
+
+  const toggleTheme = () => {
+    setTheme(prevTheme => (prevTheme === 'light' ? 'dark' : 'light'));
+  };
+
+  return [theme, toggleTheme];
+};
 
 const App: React.FC = () => {
-  const [joke, setJoke] = useState<Joke | null>(null);
-  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [token, setToken] = useState<string | null>(localStorage.getItem('github_token'));
+  const [user, setUser] = useState<User | null>(null);
+  const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+  const [theme, toggleTheme] = useTheme();
 
-  const fetchJoke = useCallback(async () => {
-    setIsLoading(true);
-    setError(null);
+  const verifyToken = useCallback(async (currentToken: string) => {
     try {
-      const response = await fetch(API_URL);
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-      const data = await response.json();
-      setJoke({
-        setup: data.setup,
-        punchline: data.punchline,
-      });
+      setError(null);
+      const userData = await getUser(currentToken);
+      setUser(userData);
     } catch (e) {
-      const errorMessage = e instanceof Error ? e.message : 'An unknown error occurred.';
-      setError(`Failed to fetch joke: ${errorMessage}`);
-      setJoke(null);
+      console.error("Token verification failed", e);
+      setUser(null);
+      setToken(null);
+      localStorage.removeItem('github_token');
+      if (e instanceof Error && e.message.includes('401')) {
+        setError("Invalid token. Please log in again.");
+      } else {
+        setError("Failed to connect to GitHub. Please check your network and try again.");
+      }
     } finally {
-      setIsLoading(false);
+      setLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    fetchJoke();
-  }, [fetchJoke]);
+    if (token) {
+      verifyToken(token);
+    } else {
+      setLoading(false);
+    }
+  }, [token, verifyToken]);
+
+  const handleLogin = (newToken: string) => {
+    setLoading(true);
+    localStorage.setItem('github_token', newToken);
+    setToken(newToken);
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem('github_token');
+    setToken(null);
+    setUser(null);
+    setError(null);
+  };
+
+  if (loading) {
+    return (
+        <div className="min-h-screen bg-light-bg dark:bg-dark-bg flex items-center justify-center">
+            <p className="text-gray-600 dark:text-gray-400">Loading...</p>
+        </div>
+    );
+  }
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center p-4 text-center font-sans">
-      <div className="w-full max-w-lg mx-auto">
-        <header className="mb-8">
-          <h1 className="text-4xl md:text-5xl font-bold text-gray-800 dark:text-white">
-            DevJoke Generator
-          </h1>
-          <p className="text-gray-600 dark:text-gray-400 mt-2">
-            Built to demonstrate CI/CD with AutoFlow.
-          </p>
-        </header>
-
-        <main>
-          {error && (
-            <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-lg mb-4" role="alert">
-              <strong className="font-bold">Oops! </strong>
-              <span className="block sm:inline">{error}</span>
-            </div>
-          )}
-
-          <JokeCard joke={joke} isLoading={isLoading} />
-          
-          <button
-            onClick={fetchJoke}
-            disabled={isLoading}
-            className="mt-8 px-8 py-3 bg-brand-primary text-white font-semibold rounded-lg shadow-md hover:bg-brand-secondary focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-brand-secondary focus:ring-offset-light-bg dark:focus:ring-offset-dark-bg transition-all duration-300 transform hover:-translate-y-1 disabled:bg-gray-400 disabled:cursor-not-allowed disabled:transform-none"
-          >
-            {isLoading ? 'Loading...' : 'Tell Me Another!'}
-          </button>
-        </main>
-      </div>
-    </div>
+    <>
+      {user && token ? (
+        <Dashboard user={user} token={token} onLogout={handleLogout} theme={theme} onToggleTheme={toggleTheme} />
+      ) : (
+        <LoginPage onLogin={handleLogin} error={error} />
+      )}
+    </>
   );
 };
 

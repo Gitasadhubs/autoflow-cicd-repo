@@ -1,60 +1,119 @@
 <!DOCTYPE html>
 <html lang="en">
-  <head>
+<head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3e%3cpath d='M50,5 A45,45 0 1,1 50,95 A45,45 0 1,1 50,5 Z' fill='%23FFCA28'/%3e%3cpath d='M30,60 Q50,75 70,60' stroke='%23333' stroke-width='5' fill='none' stroke-linecap='round'/%3e%3cg transform='translate(0, -5)'%3e%3cpath d='M32,35 Q35,25 42,35' stroke='%23333' stroke-width='5' fill='none' stroke-linecap='round'/%3e%3cpath d='M58,35 Q65,25 68,35' stroke='%23333' stroke-width='5' fill='none' stroke-linecap='round'/%3e%3c/g%3e%3c/svg%3e" />
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3csvg viewBox='0 0 24 24' fill='none' xmlns='http://www.w3.org/2000/svg'%3e%3cdefs%3e%3clinearGradient id='grad1' x1='0%25' y1='0%25' x2='100%25' y2='100%25'%3e%3cstop offset='0%25' style='stop-color:%23f97316;stop-opacity:1' /%3e%3cstop offset='100%25' style='stop-color:%23fb923c;stop-opacity:1' /%3e%3c/linearGradient%3e%3clinearGradient id='grad2' x1='0%25' y1='100%25' x2='100%25' y2='0%25'%3e%3cstop offset='0%25' style='stop-color:%2322c55e;stop-opacity:1' /%3e%3cstop offset='100%25' style='stop-color:%234ade80;stop-opacity:1' /%3e%3c/linearGradient%3e%3c/defs%3e%3cpath d='M9 18 C10 22, 14 22, 15 18 C14 20, 10 20, 9 18 Z' fill='url(%23grad1)' /%3e%3cpath d='M9.5 11 L6 18 L9.5 15 Z' fill='url(%23grad2)' /%3e%3cpath d='M14.5 11 L18 18 L14.5 15 Z' fill='url(%23grad2)' /%3e%3cpath d='M12 2 C10 6, 9.5 10, 9.5 17 H 14.5 C 14.5 10, 14 6, 12 2 Z' fill='currentColor' /%3e%3ccircle cx='12' cy='9' r='2.5' fill='%234b5563' stroke='currentColor' stroke-width='1' /%3e%3c/svg%3e" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>DevJoke Generator</title>
+    <title>AutoFlow</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
-      tailwind.config = {
+    tailwind.config = {
+        darkMode: 'class', // Enable dark mode based on the 'dark' class
         theme: {
-          extend: {
+        extend: {
             colors: {
-              'brand-primary': '#1D4ED8', // blue-700
-              'brand-secondary': '#3B82F6', // blue-500
-              'light-bg': '#F3F4F6', // gray-100
-              'dark-bg': '#1F2937', // gray-800
-            },
-            keyframes: {
-              'fade-in': {
-                '0%': { opacity: '0', transform: 'translateY(10px)' },
-                '100%': { opacity: '1', transform: 'translateY(0)' },
-              }
+            'brand-primary': '#1D4ED8', // blue-700
+            'brand-dark': '#1E40AF', // blue-800
+            'brand-secondary': '#3B82F6', // blue-500
+            'brand-surface': '#111827', // gray-900
+            'light-surface': '#FFFFFF', // white
+            'light-bg': '#F9FAFB', // gray-50
+            'dark-bg': '#1F2937', // gray-800
+            'status-success': '#16A34A', // green-600
+            'status-failed': '#DC2626', // red-600
+            'status-in-progress': '#D97706', // amber-600
             },
             animation: {
-              'fade-in': 'fade-in 0.5s ease-out forwards',
+                'scale-up': 'scale-up 0.3s ease-out forwards',
+                'rocket-float': 'rocket-float 3s ease-in-out infinite',
+            },
+            keyframes: {
+                'scale-up': {
+                    '0%': { transform: 'scale(0.9)', opacity: '0' },
+                    '100%': { transform: 'scale(1)', opacity: '1' },
+                },
+                'rocket-float': {
+                    '0%, 100%': { transform: 'translateY(0)' },
+                    '50%': { transform: 'translateY(-10px)' },
+                }
             }
-          }
         }
-      }
+        }
+    }
     </script>
-  <script type="importmap">
+    <style>
+      .yaml-editor-container {
+        position: relative;
+        background-color: #1f2937; /* gray-800 */
+        border-radius: 0.5rem;
+        overflow: hidden;
+      }
+      .yaml-editor {
+        counter-reset: line;
+        color: #d1d5db; /* gray-300 */
+      }
+      .yaml-editor .line-content::before {
+        content: counter(line);
+        counter-increment: line;
+        position: absolute;
+        left: 10px;
+        color: #6b7280; /* gray-500 */
+        text-align: right;
+        width: 2.5em; /* Adjust width as needed */
+        padding-right: 1em;
+        user-select: none;
+      }
+       .yaml-editor .line-content {
+        padding-left: 4.5em; /* Make space for line numbers */
+        display: block;
+       }
+      .token.key { color: #60a5fa; /* blue-400 */ }
+      .token.string { color: #a5b4fc; /* indigo-300 */ }
+      .token.comment { color: #9ca3af; /* gray-400 */ font-style: italic; }
+      .token.number { color: #facc15; /* yellow-400 */ }
+      .token.boolean { color: #f87171; /* red-400 */ }
+      .token.punctuation { color: #9ca3af; /* gray-400 */ }
+      /* Custom background for login page */
+      .login-page-background {
+        background-color: #F9FAFB; /* gray-50 */
+        background-image:
+          radial-gradient(at 20% 20%, #DBEAFE 0px, transparent 50%),
+          radial-gradient(at 80% 10%, #D1FAE5 0px, transparent 50%),
+          radial-gradient(at 80% 80%, #FEF3C7 0px, transparent 50%);
+      }
+      html.dark .login-page-background {
+        background-color: #1F2937; /* gray-800 */
+        background-image:
+          radial-gradient(at 20% 20%, #1E3A8A 0px, transparent 50%),
+          radial-gradient(at 80% 10%, #064E3B 0px, transparent 50%),
+          radial-gradient(at 80% 80%, #78350F 0px, transparent 50%);
+      }
+    </style>
+    <script type="importmap">
 {
   "imports": {
-    "prismjs": "https://aistudiocdn.com/prismjs@^1.30.0",
-    "prismjs/": "https://aistudiocdn.com/prismjs@^1.30.0/",
-    "child_process": "https://aistudiocdn.com/child_process@^1.0.2",
-    "react/": "https://aistudiocdn.com/react@^19.2.0/",
-    "react": "https://aistudiocdn.com/react@^19.2.0",
+    "react": "https://esm.sh/react@18.2.0",
+    "react-dom/client": "https://esm.sh/react-dom@18.2.0/client",
+    "react-simple-code-editor": "https://ga.jspm.io/npm:react-simple-code-editor@0.13.1/lib/index.js",
+    "prismjs": "https://ga.jspm.io/npm:prismjs@1.29.0/prism.js",
+    "prismjs/": "https://ga.jspm.io/npm:prismjs@1.29.0/",
     "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/",
-    "@google/genai": "https://aistudiocdn.com/@google/genai@^1.25.0",
-    "url": "https://aistudiocdn.com/url@^0.11.4",
-    "vite": "https://aistudiocdn.com/vite@^7.1.10",
-    "path": "https://aistudiocdn.com/path@^0.12.7",
-    "dotenv": "https://aistudiocdn.com/dotenv@^17.2.3",
+    "react/": "https://aistudiocdn.com/react@^19.2.0/",
     "@vercel/node": "https://aistudiocdn.com/@vercel/node@^5.4.0",
+    "@google/genai": "https://aistudiocdn.com/@google/genai@^1.25.0",
     "express": "https://aistudiocdn.com/express@^5.1.0",
     "cors": "https://aistudiocdn.com/cors@^2.8.5",
-    "@vitejs/plugin-react": "https://aistudiocdn.com/@vitejs/plugin-react@^5.0.4",
+    "path": "https://aistudiocdn.com/path@^0.12.7",
+    "url": "https://aistudiocdn.com/url@^0.11.4",
+    "dotenv": "https://aistudiocdn.com/dotenv@^17.2.3",
     "libsodium-wrappers": "https://aistudiocdn.com/libsodium-wrappers@^0.7.15",
-    "react-simple-code-editor": "https://aistudiocdn.com/react-simple-code-editor@^0.14.1"
+    "child_process": "https://aistudiocdn.com/child_process@^1.0.2"
   }
 }
 </script>
 </head>
-  <body class="bg-light-bg dark:bg-dark-bg">
+<body class="bg-light-bg dark:bg-dark-bg">
     <div id="root"></div>
     <script type="module" src="/index.tsx"></script>
-  </body>
+</body>
 </html>
