@@ -10,7 +10,7 @@ const YamlBlock: React.FC<{ children: string }> = ({ children }) => (
     </div>
 );
 
-const Code: React.FC<{ children: string }> = ({ children }) => (
+const Code: React.FC<{ children: React.ReactNode }> = ({ children }) => (
     <code className="bg-gray-200 dark:bg-gray-700 text-brand-secondary font-mono text-sm py-0.5 px-1.5 rounded-md">{children}</code>
 );
 

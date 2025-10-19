@@ -16,20 +16,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     try {
         await libsodium.ready;
 
-        // FIX: The libsodium-wrappers types can be inconsistent with the runtime object.
-        // The 'utils' namespace, which contains the necessary encoding/decoding functions,
-        // is not always correctly typed. We cast to 'any' to bypass potential type
-        // errors and use the correct runtime functions, aligning this with the local dev server.
-        const utils = (libsodium as any).utils;
+        // Use Node.js's native Buffer for robust encoding, avoiding inconsistencies
+        // with the libsodium.utils helper module in different environments.
+        const secretBytes = Buffer.from(valueToEncrypt, 'utf8');
+        const publicKeyBytes = Buffer.from(publicKey, 'base64');
 
-        const secretBytes = utils.decodeUTF8(valueToEncrypt);
-        const publicKeyBytes = utils.decodeBase64(publicKey);
-
-        // Encrypt the secret using libsodium
+        // Encrypt the secret using libsodium. It expects Uint8Array, and Buffer is a subclass.
         const encryptedBytes = libsodium.crypto_box_seal(secretBytes, publicKeyBytes);
 
-        // Convert the encrypted Uint8Array to a base64 string
-        const encryptedValue = utils.encodeBase64(encryptedBytes);
+        // Convert the encrypted Uint8Array back to a base64 string for the GitHub API.
+        const encryptedValue = Buffer.from(encryptedBytes).toString('base64');
 
         return res.status(200).json({ encryptedValue });
     } catch (error) {
