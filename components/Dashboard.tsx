@@ -23,6 +23,15 @@ interface DashboardProps {
   onToggleTheme: () => void;
 }
 
+// Helper function to ensure only strings or numbers are rendered, preventing crashes from unexpected object types.
+const renderSafely = (value: any, fallback: string = ''): string => {
+    if (typeof value === 'string' || typeof value === 'number') {
+        return String(value);
+    }
+    return fallback;
+};
+
+
 const Header: React.FC<{ 
     user: User; 
     onLogout: () => void; 
@@ -153,15 +162,15 @@ const RepositoryListItem: React.FC<{
             <div className="flex justify-between items-start">
                 <div className="flex-grow">
                     <div className="flex items-center space-x-3">
-                        <a href={`https://github.com/${repo.full_name}`} target="_blank" rel="noopener noreferrer" className="font-bold text-brand-primary hover:underline">{repo.name}</a>
+                        <a href={`https://github.com/${repo.full_name}`} target="_blank" rel="noopener noreferrer" className="font-bold text-brand-primary hover:underline">{renderSafely(repo.name)}</a>
                         {repo.private && <LockClosedIcon className="w-4 h-4 text-gray-500 dark:text-gray-400" title="Private Repository" />}
                     </div>
-                    <p className="text-sm text-gray-600 dark:text-gray-400 mt-1 truncate">{repo.description || 'No description available.'}</p>
+                    <p className="text-sm text-gray-600 dark:text-gray-400 mt-1 truncate">{renderSafely(repo.description, 'No description available.')}</p>
                     <div className="flex items-center space-x-4 mt-2 text-xs text-gray-500 dark:text-gray-400">
-                        {repo.language && <span className="flex items-center"><CodeBracketIcon className="w-3 h-3 mr-1" />{repo.language}</span>}
+                        {repo.language && <span className="flex items-center"><CodeBracketIcon className="w-3 h-3 mr-1" />{renderSafely(repo.language)}</span>}
                         <span className="flex items-center" title="Default branch">
                             <BranchIcon className="w-3 h-3 mr-1" />
-                            {repo.default_branch}
+                            {renderSafely(repo.default_branch)}
                         </span>
                         <span>Updated {timeSince(repo.updated_at)}</span>
                     </div>
@@ -253,11 +262,11 @@ const DeploymentListItem: React.FC<{
         <div className="grid grid-cols-12 items-center gap-4 py-3 px-4 text-sm text-gray-700 dark:text-gray-300 border-b border-gray-200 dark:border-gray-700 last:border-b-0">
             <div className="col-span-1"><DeploymentStatusIcon status={deployment.status} /></div>
             <div className="col-span-4 font-medium">
-                <p className="truncate text-gray-900 dark:text-gray-100">{deployment.description || 'No description'}</p>
-                <p className="text-gray-500 dark:text-gray-400 font-mono text-xs">{deployment.sha.substring(0, 7)}</p>
+                <p className="truncate text-gray-900 dark:text-gray-100">{renderSafely(deployment.description, 'No description')}</p>
+                <p className="text-gray-500 dark:text-gray-400 font-mono text-xs">{renderSafely(deployment.sha, '').substring(0, 7)}</p>
             </div>
-            <div className="col-span-2 text-gray-600 dark:text-gray-400">{deployment.ref}</div>
-            <div className="col-span-2 text-gray-600 dark:text-gray-400">{deployment.duration}</div>
+            <div className="col-span-2 text-gray-600 dark:text-gray-400">{renderSafely(deployment.ref)}</div>
+            <div className="col-span-2 text-gray-600 dark:text-gray-400">{renderSafely(deployment.duration)}</div>
             <div className="col-span-3 flex justify-end items-center space-x-4">
                  <button onClick={() => onLogView(deployment)} className="text-brand-secondary hover:underline font-semibold">View Details</button>
                  {canCancel && deployment.runId && (
