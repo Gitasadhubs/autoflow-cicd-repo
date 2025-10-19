@@ -460,6 +460,54 @@ app.post('/api/chat-with-docs', async (req, res) => {
     }
 });
 
+// API route for AI debugging
+app.post('/api/debug-failure', async (req, res) => {
+    try {
+        if (!process.env.API_KEY) {
+            return res.status(500).json({ error: "Server configuration error: API_KEY is missing." });
+        }
+        const { logs, repoName } = req.body;
+        if (!logs || !repoName) {
+            return res.status(400).json({ error: 'Request body must contain "logs" and "repoName".' });
+        }
+        
+        const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+        
+        const systemInstruction = `You are an expert DevOps and code debugging assistant. Your task is to analyze failed GitHub Actions logs.
+- Identify the root cause of the failure.
+- Provide a clear, concise explanation of what went wrong.
+- Offer a specific, actionable solution (e.g., code change, configuration update, command to run).
+- Format your entire response in Markdown. Use headings, code blocks for commands or code snippets, and lists for clarity.
+- If the logs are empty or don't contain a clear error, state that and suggest general debugging steps.
+- Be helpful and encouraging.`;
+
+        const prompt = `Analyze the following GitHub Actions logs for a failed deployment in the "${repoName}" repository and suggest a fix.\n\nLOGS:\n\`\`\`\n${logs}\n\`\`\``;
+        
+        const stream = await ai.models.generateContentStream({
+            model: 'gemini-2.5-pro',
+            contents: prompt,
+            config: { systemInstruction },
+        });
+
+        res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+        res.setHeader('Cache-Control', 'no-cache');
+        res.setHeader('Connection', 'keep-alive');
+
+        for await (const chunk of stream) {
+            const text = chunk.text;
+            if (text) {
+                res.write(text);
+            }
+        }
+        res.end();
+
+    } catch (error) {
+        console.error("Error in AI debug handler:", error);
+        const errorMessage = error instanceof Error ? error.message : "An unknown error occurred.";
+        res.status(500).json({ error: errorMessage });
+    }
+});
+
 
 // API route to encrypt secrets
 app.post('/api/encrypt', async (req, res) => {

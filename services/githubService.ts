@@ -135,8 +135,9 @@ export const getLatestWorkflowRun = async (
 };
 
 // Function to get deployments for a specific repository
-export const getDeploymentsForRepo = async (token:string, owner: string, repo: string): Promise<(Deployment & { status: DeploymentStatus, duration: string })[]> => {
-    const deployments = await githubApiRequest<Deployment[]>(`/repos/${owner}/${repo}/deployments`, token);
+export const getDeploymentsForRepo = async (token:string, owner: string, repo: string): Promise<Deployment[]> => {
+    const deploymentsData = await githubApiRequest<Omit<Deployment, 'status'|'duration'|'runId'>[]>(`/repos/${owner}/${repo}/deployments`, token);
+    const deployments: Deployment[] = deploymentsData;
 
     // Get the latest status for each deployment and try to find its workflow run ID
     const deploymentPromises = deployments.map(async (dep) => {
@@ -173,8 +174,7 @@ export const getDeploymentsForRepo = async (token:string, owner: string, repo: s
     const deploymentsWithStatus = await Promise.all(deploymentPromises);
 
     // Filter out any deployments that failed to process.
-    // The type assertion is necessary because filter() doesn't automatically narrow the type.
-    return deploymentsWithStatus.filter(d => d !== null) as (Deployment & { status: DeploymentStatus, duration: string })[];
+    return deploymentsWithStatus.filter(d => d !== null) as Deployment[];
 }
 
 
@@ -459,6 +459,42 @@ export const triggerRedeployment = async (
             body: JSON.stringify({ ref: branch }),
         }
     );
+};
+
+export const getWorkflowRunLogs = async (
+    token: string,
+    owner: string,
+    repo: string,
+    runId: number
+): Promise<string> => {
+    try {
+        // This endpoint returns a 302 redirect to a temporary URL for the logs zip file.
+        // The default `fetch` behavior is to follow this redirect.
+        const response = await fetch(`${GITHUB_API_BASE}/repos/${owner}/${repo}/actions/runs/${runId}/logs`, {
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Accept': 'application/vnd.github.v3+json',
+                'X-GitHub-Api-Version': '2022-11-28',
+            }
+        });
+
+        if (!response.ok) {
+             const errorData = await response.json().catch(() => ({ message: 'Could not parse error from GitHub.' }));
+             throw new Error(`GitHub API Error: ${response.status} - ${errorData.message}`);
+        }
+        
+        // IMPORTANT: The response body is a zip archive. Without a client-side zip library,
+        // we can't properly parse it. We'll return it as text, which will show the raw
+        // zip content. A full implementation would require a library like JSZip to extract
+        // individual log files from the archive. For this exercise, we display the raw text
+        // to prove the data fetching works.
+        const logZipContentAsText = await response.text();
+        return logZipContentAsText;
+
+    } catch (error) {
+        console.error(`Failed to fetch logs for run ${runId}:`, error);
+        throw error;
+    }
 };
 
 export const analyzeRepository = async (

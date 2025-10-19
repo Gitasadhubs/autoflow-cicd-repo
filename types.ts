@@ -69,7 +69,11 @@ export interface Deployment {
   created_at: string;
   updated_at: string;
   statuses_url: string;
+
+  // Custom properties added by AutoFlow
   runId?: number; // Added to link deployment to a specific workflow run
+  status?: DeploymentStatus; // Latest status of the deployment
+  duration?: string; // Calculated duration of the deployment
 }
 
 // Represents the status of a specific deployment

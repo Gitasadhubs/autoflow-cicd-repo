@@ -228,7 +228,7 @@ const RepositoryListItem: React.FC<{
 };
 
 
-const DeploymentStatusIcon: React.FC<{ status: DeploymentStatus }> = ({ status }) => {
+const DeploymentStatusIcon: React.FC<{ status: DeploymentStatus | undefined }> = ({ status }) => {
   switch (status) {
     case DeploymentStatus.Success:
       return <CheckCircleIcon className="w-6 h-6 text-status-success" />;
@@ -240,14 +240,12 @@ const DeploymentStatusIcon: React.FC<{ status: DeploymentStatus }> = ({ status }
     case DeploymentStatus.Queued:
       return <ArrowPathIcon className="w-6 h-6 text-status-in-progress animate-spin" />;
     default:
-      return null;
+      return  <QuestionMarkCircleIcon className="w-6 h-6 text-gray-400" />;
   }
 };
 
-type DeploymentWithStatus = Deployment & { status: DeploymentStatus, duration: string };
-
 const DeploymentListItem: React.FC<{ 
-    deployment: DeploymentWithStatus;
+    deployment: Deployment;
     onLogView: (deployment: Deployment) => void;
     onCancel: (deployment: Deployment) => void;
     isCanceling: boolean;
@@ -256,7 +254,7 @@ const DeploymentListItem: React.FC<{
         DeploymentStatus.InProgress,
         DeploymentStatus.Pending,
         DeploymentStatus.Queued
-    ].includes(deployment.status);
+    ].includes(deployment.status || DeploymentStatus.Pending);
 
     return (
         <div className="grid grid-cols-12 items-center gap-4 py-3 px-4 text-sm text-gray-700 dark:text-gray-300 border-b border-gray-200 dark:border-gray-700 last:border-b-0">
@@ -266,7 +264,7 @@ const DeploymentListItem: React.FC<{
                 <p className="text-gray-500 dark:text-gray-400 font-mono text-xs">{renderSafely(deployment.sha, '').substring(0, 7)}</p>
             </div>
             <div className="col-span-2 text-gray-600 dark:text-gray-400">{renderSafely(deployment.ref)}</div>
-            <div className="col-span-2 text-gray-600 dark:text-gray-400">{renderSafely(deployment.duration)}</div>
+            <div className="col-span-2 text-gray-600 dark:text-gray-400">{renderSafely(deployment.duration, '...')}</div>
             <div className="col-span-3 flex justify-end items-center space-x-4">
                  <button onClick={() => onLogView(deployment)} className="text-brand-secondary hover:underline font-semibold">View Details</button>
                  {canCancel && deployment.runId && (
@@ -292,14 +290,14 @@ const DeploymentListItem: React.FC<{
 
 const Dashboard: React.FC<DashboardProps> = ({ user, token, onLogout, theme, onToggleTheme }) => {
   const [repositories, setRepositories] = useState<Repository[]>([]);
-  const [deployments, setDeployments] = useState<DeploymentWithStatus[]>([]);
+  const [deployments, setDeployments] = useState<Deployment[]>([]);
   const [loadingRepos, setLoadingRepos] = useState(true);
   const [loadingDeployments, setLoadingDeployments] = useState(false);
   
   const [configRepo, setConfigRepo] = useState<Repository | null>(null);
   const [configMode, setConfigMode] = useState<'create' | 'edit'>('create');
   const [selectedRepo, setSelectedRepo] = useState<Repository | null>(null); // Repo for viewing deployments
-  const [viewingLogs, setViewingLogs] = useState<Deployment | null>(null);
+  const [viewingLogs, setViewingLogs] = useState<{ deployment: Deployment, repo: Repository } | null>(null);
   const [showDocs, setShowDocs] = useState<boolean>(false);
   const [showBuddyBot, setShowBuddyBot] = useState<boolean>(false);
   const [showCli, setShowCli] = useState<boolean>(false);
@@ -382,7 +380,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, token, onLogout, theme, onT
 
     // Check if there are any deployments in a non-terminal state that require polling.
     const hasActiveDeployment = deployments.some(dep => 
-      [DeploymentStatus.InProgress, DeploymentStatus.Pending, DeploymentStatus.Queued].includes(dep.status)
+      [DeploymentStatus.InProgress, DeploymentStatus.Pending, DeploymentStatus.Queued].includes(dep.status || DeploymentStatus.Pending)
     );
 
     // If no deployments are active, we don't need to poll.
@@ -508,6 +506,12 @@ const Dashboard: React.FC<DashboardProps> = ({ user, token, onLogout, theme, onT
   const handleEdit = (repo: Repository) => {
     setConfigRepo(repo);
     setConfigMode('edit');
+  };
+
+  const handleLogView = (deployment: Deployment) => {
+      if (selectedRepo) {
+          setViewingLogs({ deployment, repo: selectedRepo });
+      }
   };
 
   const filteredRepositories = repositories.filter(repo =>
@@ -689,7 +693,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, token, onLogout, theme, onT
                             <DeploymentListItem 
                                 key={dep.id} 
                                 deployment={dep} 
-                                onLogView={setViewingLogs}
+                                onLogView={handleLogView}
                                 onCancel={handleCancelDeployment}
                                 isCanceling={cancelingRunId === dep.runId}
                             />
@@ -723,7 +727,12 @@ const Dashboard: React.FC<DashboardProps> = ({ user, token, onLogout, theme, onT
           />
       )}
       {viewingLogs && (
-        <LogViewer deployment={viewingLogs} onClose={() => setViewingLogs(null)} />
+        <LogViewer 
+            deployment={viewingLogs.deployment}
+            repo={viewingLogs.repo}
+            token={token}
+            onClose={() => setViewingLogs(null)} 
+        />
       )}
       {showDocs && (
         <Documentation onClose={() => setShowDocs(false)} />
