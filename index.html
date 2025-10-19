@@ -2,153 +2,58 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3csvg viewBox='0 0 24 24' fill='none' xmlns='http://www.w3.org/2000/svg'%3e%3cdefs%3e%3clinearGradient id='grad1' x1='0%25' y1='0%25' x2='100%25' y2='100%25'%3e%3cstop offset='0%25' style='stop-color:%23f97316;stop-opacity:1' /%3e%3cstop offset='100%25' style='stop-color:%23fb923c;stop-opacity:1' /%3e%3c/linearGradient%3e%3clinearGradient id='grad2' x1='0%25' y1='100%25' x2='100%25' y2='0%25'%3e%3cstop offset='0%25' style='stop-color:%2322c55e;stop-opacity:1' /%3e%3cstop offset='100%25' style='stop-color:%234ade80;stop-opacity:1' /%3e%3c/linearGradient%3e%3c/defs%3e%3cpath d='M9 18 C10 22, 14 22, 15 18 C14 20, 10 20, 9 18 Z' fill='url(%23grad1)' /%3e%3cpath d='M9.5 11 L6 18 L9.5 15 Z' fill='url(%23grad2)' /%3e%3cpath d='M14.5 11 L18 18 L14.5 15 Z' fill='url(%23grad2)' /%3e%3cpath d='M12 2 C10 6, 9.5 10, 9.5 17 H 14.5 C 14.5 10, 14 6, 12 2 Z' fill='url(%23grad2)' /%3e%3c/svg%3e" />
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3e%3cpath d='M50,5 A45,45 0 1,1 50,95 A45,45 0 1,1 50,5 Z' fill='%23FFCA28'/%3e%3cpath d='M30,60 Q50,75 70,60' stroke='%23333' stroke-width='5' fill='none' stroke-linecap='round'/%3e%3cg transform='translate(0, -5)'%3e%3cpath d='M32,35 Q35,25 42,35' stroke='%23333' stroke-width='5' fill='none' stroke-linecap='round'/%3e%3cpath d='M58,35 Q65,25 68,35' stroke='%23333' stroke-width='5' fill='none' stroke-linecap='round'/%3e%3c/g%3e%3c/svg%3e" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>AutoFlow CI/CD</title>
+    <title>DevJoke Generator</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-okaidia.min.css" integrity="sha512-mIs9kKbaw6JZFfSuo+MovjU+Ntggfoj8RwAmJbVXQ5mkAX5LlgETQEweFPI18humSPHymTb5iikEOKWF7I8ncQ==" crossorigin="anonymous" referrerpolicy="no-referrer" />
     <script>
       tailwind.config = {
-        darkMode: 'class', // Enable class-based dark mode
         theme: {
           extend: {
             colors: {
-              'brand-primary': '#f97316',    // orange-500
-              'brand-secondary': '#fb923c',  // orange-400
-              'brand-dark': '#ea580c',      // orange-600
-              'brand-bg': '#0f172a',        // slate-900
-              'brand-surface': '#1f2937',   // gray-800
-              'light-bg': '#f1f5f9',        // slate-100
-              'light-surface': '#ffffff',  // white
-              'status-success': '#22c55e',   // green-500
-              'status-in-progress': '#eab308', // yellow-500
-              'status-failed': '#ef4444',     // red-500
+              'brand-primary': '#1D4ED8', // blue-700
+              'brand-secondary': '#3B82F6', // blue-500
+              'light-bg': '#F3F4F6', // gray-100
+              'dark-bg': '#1F2937', // gray-800
             },
             keyframes: {
-              'scale-up': {
-                '0%': { transform: 'scale(0.95)', opacity: '0' },
-                '100%': { transform: 'scale(1)', opacity: '1' },
-              },
-              'rocket-float': {
-                '0%, 100%': { transform: 'translateY(0) rotate(-1deg)' },
-                '50%': { transform: 'translateY(-8px) rotate(1deg)' },
+              'fade-in': {
+                '0%': { opacity: '0', transform: 'translateY(10px)' },
+                '100%': { opacity: '1', transform: 'translateY(0)' },
               }
             },
             animation: {
-              'spin-slow': 'spin 3s linear infinite',
-              'pulse-fast': 'pulse 1s cubic-bezier(0.4, 0, 0.6, 1) infinite',
-              'scale-up': 'scale-up 0.2s ease-out forwards',
-              'rocket-float': 'rocket-float 2s ease-in-out infinite',
+              'fade-in': 'fade-in 0.5s ease-out forwards',
             }
           }
         }
       }
     </script>
-    <style>
-      /* Light mode default style */
-      body {
-        background-color: #f1f5f9; /* slate-100 */
-        transition: background-color 0.3s ease;
-      }
-      /* Dark mode override */
-      html.dark body {
-        background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' width='100%25' height='100%25'%3e%3cdefs%3e%3cradialGradient id='grad' cx='50%25' cy='50%25' r='70%25'%3e%3cstop offset='0%25' stop-color='%231e293b' /%3e%3cstop offset='100%25' stop-color='%230f172a' /%3e%3c/radialGradient%3e%3cpattern id='pattern-stars' height='100' width='100' patternUnits='userSpaceOnUse'%3e%3ccircle fill='%2523ffffff' cx='5' cy='5' r='0.8' opacity='0.8'%3e%3c/circle%3e%3ccircle fill='%2523ffffff' cx='50' cy='20' r='0.5' opacity='0.5'%3e%3c/circle%3e%3ccircle fill='%2523ffffff' cx='90' cy='40' r='1' opacity='0.9'%3e%3c/circle%3e%3ccircle fill='%2523ffffff' cx='30' cy='60' r='0.6' opacity='0.6'%3e%3c/circle%3e%3ccircle fill='%2523ffffff' cx='70' cy='85' r='0.7' opacity='0.7'%3e%3c/circle%3e%3c/pattern%3e%3c/defs%3e%3crect width='100%25' height='100%25' fill='url(%23grad)' /%3e%3crect width='100%25' height='100%25' fill='url(%23pattern-stars)' opacity='0.5'/%3e%3c/svg%3e");
-        background-size: cover;
-        background-position: center center;
-        background-attachment: fixed;
-      }
-      .login-page-background {
-        background-color: #f1f5f9; /* Use light-bg color for light mode login */
-        background-image: none;
-      }
-      html.dark .login-page-background {
-        background-color: #0f172a;
-        background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 800 800'%3e%3cdefs%3e%3cradialGradient id='bgGradient' cx='50%25' cy='50%25' r='50%25'%3e%3cstop offset='0%25' stop-color='%231e293b' /%3e%3cstop offset='100%25' stop-color='%230f172a' /%3e%3c/radialGradient%3e%3cfilter id='glow-filter'%3e%3cfeGaussianBlur stdDeviation='5' result='coloredBlur'/%3e%3cfeMerge%3e%3cfeMergeNode in='coloredBlur'/%3e%3cfeMergeNode in='SourceGraphic'/%3e%3c/feMerge%3e%3c/filter%3e%3c/defs%3e%3crect width='100%25' height='100%25' fill='url(%23bgGradient)' /%3e%3cg filter='url(%23glow-filter)' opacity='0.7'%3e%3cpath d='M-100 400 Q 200 200, 400 400 T 900 400' stroke='%23f97316' stroke-width='2' fill='none' stroke-linecap='round' stroke-dasharray='10 20'%3e%3canimate attributeName='stroke-dashoffset' from='0' to='30' dur='4s' repeatCount='indefinite' /%3e%3c/path%3e%3cpath d='M900 200 Q 600 400, 400 200 T -100 200' stroke='%23fb923c' stroke-width='1.5' fill='none' stroke-linecap='round' stroke-dasharray='5 15'%3e%3canimate attributeName='stroke-dashoffset' from='20' to='0' dur='3.5s' repeatCount='indefinite' /%3e%3c/path%3e%3cpath d='M-100 600 Q 300 700, 400 500 T 900 600' stroke='%230ea5e9' stroke-width='1' fill='none' stroke-linecap='round' stroke-dasharray='20 20'%3e%3canimate attributeName='stroke-dashoffset' from='0' to='-40' dur='5s' repeatCount='indefinite' /%3e%3c/path%3e%3cpath d='M-100 100 Q 150 50, 400 150 T 900 50' stroke='%2322d3ee' stroke-width='1' fill='none' stroke-linecap='round' stroke-dasharray='10 10'%3e%3canimate attributeName='stroke-dashoffset' from='0' to='20' dur='6s' repeatCount='indefinite' /%3e%3c/path%3e%3c/g%3e%3c/svg%3e");
-        background-size: cover;
-        background-position: center center;
-      }
-
-      /* Styles for the code editor */
-      .yaml-editor-container {
-          height: 240px; /* h-60 */
-          overflow: auto;
-          background: #272822; /* Okaidia theme default */
-          color: #f8f8f2;
-          border-radius: 0.5rem;
-          position: relative;
-      }
-      html.light .yaml-editor-container {
-          background: #fafafa;
-          color: #383a42;
-      }
-      .yaml-editor-container .prism-editor-wrapper {
-        min-height: 100%;
-      }
-      .yaml-editor-container code[class*="language-"],
-      .yaml-editor-container pre[class*="language-"] {
-          background: transparent !important;
-          text-shadow: none !important;
-      }
-      .yaml-editor-container pre {
-          counter-reset: line;
-          padding-left: 3.8em !important;
-      }
-      .yaml-editor-container .line-content {
-          display: block;
-          position: relative;
-      }
-      .yaml-editor-container .line-content::before {
-          position: absolute;
-          left: -3.8em;
-          width: 3em;
-          padding-right: 1em;
-          text-align: right;
-          color: #5f5f5f;
-          content: counter(line);
-          counter-increment: line;
-          user-select: none;
-      }
-      html.light .yaml-editor-container .line-content::before {
-          color: #ccc;
-      }
-      html.light .yaml-editor-container .token.key { color: #e45649; }
-      html.light .yaml-editor-container .token.string { color: #50a14f; }
-      html.light .yaml-editor-container .token.boolean { color: #c99119; }
-      html.light .yaml-editor-container .token.number { color: #986801; }
-      html.light .yaml-editor-container .token.comment { color: #a0a1a7; font-style: italic; }
-
-      .yaml-editor-container .prism-editor__textarea:focus,
-      .yaml-editor-container .prism-editor__editor:focus {
-          outline: none;
-      }
-    </style>
-<script type="importmap">
+  <script type="importmap">
 {
   "imports": {
-    "react": "https://aistudiocdn.com/react@^19.2.0",
-    "react-dom": "https://aistudiocdn.com/react-dom@^19.2.0",
-    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/",
+    "prismjs": "https://aistudiocdn.com/prismjs@^1.30.0",
+    "prismjs/": "https://aistudiocdn.com/prismjs@^1.30.0/",
+    "child_process": "https://aistudiocdn.com/child_process@^1.0.2",
     "react/": "https://aistudiocdn.com/react@^19.2.0/",
+    "react": "https://aistudiocdn.com/react@^19.2.0",
+    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/",
+    "@google/genai": "https://aistudiocdn.com/@google/genai@^1.25.0",
+    "url": "https://aistudiocdn.com/url@^0.11.4",
     "vite": "https://aistudiocdn.com/vite@^7.1.10",
-    "@vitejs/plugin-react": "https://aistudiocdn.com/@vitejs/plugin-react@^5.0.4",
+    "path": "https://aistudiocdn.com/path@^0.12.7",
+    "dotenv": "https://aistudiocdn.com/dotenv@^17.2.3",
+    "@vercel/node": "https://aistudiocdn.com/@vercel/node@^5.4.0",
     "express": "https://aistudiocdn.com/express@^5.1.0",
     "cors": "https://aistudiocdn.com/cors@^2.8.5",
-    "path": "https://aistudiocdn.com/path@^0.12.7",
-    "url": "https://aistudiocdn.com/url@^0.11.4",
-    "@google/genai": "https://aistudiocdn.com/@google/genai@^1.25.0",
-    "@vercel/node": "https://aistudiocdn.com/@vercel/node@^5.4.0",
-    "dotenv": "https://aistudiocdn.com/dotenv@^17.2.3",
+    "@vitejs/plugin-react": "https://aistudiocdn.com/@vitejs/plugin-react@^5.0.4",
     "libsodium-wrappers": "https://aistudiocdn.com/libsodium-wrappers@^0.7.15",
-    "child_process": "https://aistudiocdn.com/child_process@^1.0.2",
-    "react-simple-code-editor": "https://esm.sh/react-simple-code-editor@0.13.1",
-    "prismjs": "https://ga.jspm.io/npm:prismjs@1.29.0/prism.js",
-    "prismjs/components/prism-yaml.js": "https://ga.jspm.io/npm:prismjs@1.29.0/components/prism-yaml.js",
-    "prismjs/": "https://aistudiocdn.com/prismjs@^1.30.0/"
+    "react-simple-code-editor": "https://aistudiocdn.com/react-simple-code-editor@^0.14.1"
   }
 }
 </script>
 </head>
-  <body>
+  <body class="bg-light-bg dark:bg-dark-bg">
     <div id="root"></div>
     <script type="module" src="/index.tsx"></script>
   </body>

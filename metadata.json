@@ -1,5 +1,5 @@
 {
-  "name": "AutoFlow CI/CD",
-  "description": "A web-based platform that allows student developers to automate their code deployment process using GitHub integration and pre-configured CI/CD pipelines. It aims to make DevOps accessible to beginners by simplifying pipeline setup, monitoring build statuses, and streamlining deployment.",
+  "name": "DevJoke Generator",
+  "description": "A simple React application that fetches and displays programming jokes, built to demonstrate CI/CD automation with AutoFlow.",
   "requestFramePermissions": []
 }

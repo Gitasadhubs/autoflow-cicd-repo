@@ -10,25 +10,11 @@
     "isolatedModules": true,
     "noEmit": true,
     "jsx": "react-jsx",
-    "allowJs": true,
-    "esModuleInterop": true,
-    "allowSyntheticDefaultImports": true,
     "strict": true,
     "noUnusedLocals": true,
     "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true
   },
-  "include": [
-    "api",
-    "App.tsx",
-    "components",
-    "constants.ts",
-    "declarations.d.ts",
-    "index.tsx",
-    "server.js",
-    "services",
-    "types.ts",
-    "vite.config.ts"
-  ],
-  "exclude": ["node_modules", "dist"]
+  "include": ["**/*.ts", "**/*.tsx"],
+  "references": [{ "path": "./tsconfig.node.json" }]
 }
