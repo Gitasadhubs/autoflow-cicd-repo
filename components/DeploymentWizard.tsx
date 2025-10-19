@@ -81,12 +81,8 @@ const DeploymentWizard: React.FC<WizardProps> = ({ repos, token, onClose, onComp
     const [requiredVariables, setRequiredVariables] = useState<RequiredVariable[]>([]);
     const [requiredSecrets, setRequiredSecrets] = useState<RequiredSecret[]>([]);
     const [variableValues, setVariableValues] = useState<Record<string, string>>({});
+    const [secretValues, setSecretValues] = useState<Record<string, string>>({});
 
-    // For CLI token validation
-    const [deploymentToken, setDeploymentToken] = useState('');
-    const [isTokenValidating, setIsTokenValidating] = useState(false);
-    const [tokenValidationResult, setTokenValidationResult] = useState<'valid' | 'invalid' | null>(null);
-    const [tokenValidationError, setTokenValidationError] = useState<string | null>(null);
 
     // Step 4 State
     const [isCommitting, setIsCommitting] = useState(false);
@@ -141,37 +137,6 @@ const DeploymentWizard: React.FC<WizardProps> = ({ repos, token, onClose, onComp
         }
     }, [step, isGenerating, generatedYaml, handleGenerateWorkflow]);
 
-    const handleValidateToken = useCallback(async () => {
-        if (!deploymentToken || !selectedTarget) return;
-        
-        let command: string;
-        if (selectedTarget === DeploymentTarget.Vercel) command = 'vercel projects list';
-        else if (selectedTarget === DeploymentTarget.Railway) command = 'railway projects --non-interactive';
-        else return;
-
-        setIsTokenValidating(true);
-        setTokenValidationResult(null);
-        setTokenValidationError(null);
-        
-        try {
-            const response = await fetch('/api/run-cli', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ command, token: deploymentToken }),
-            });
-            const result = await response.json();
-            if (!response.ok || result.error) {
-                throw new Error(result.output || result.error || 'Validation failed.');
-            }
-            setTokenValidationResult('valid');
-        } catch (err) {
-            setTokenValidationResult('invalid');
-            setTokenValidationError(err instanceof Error ? err.message : 'An unknown error occurred.');
-        } finally {
-            setIsTokenValidating(false);
-        }
-    }, [deploymentToken, selectedTarget]);
-
     const handleCommit = async () => {
         if (!selectedRepo || !generatedYaml) return;
 
@@ -189,14 +154,8 @@ const DeploymentWizard: React.FC<WizardProps> = ({ repos, token, onClose, onComp
                 .map(([name, value]) => value ? setRepositoryVariable(token, selectedRepo.owner.login, selectedRepo.name, name, value) : Promise.resolve());
             await Promise.all(varPromises);
 
-            // 3. Set secrets (including validated deployment token)
-            const allSecrets: Record<string, string> = {};
-            const deploymentSecret = requiredSecrets.find(s => s.name.includes('TOKEN'));
-            if (deploymentSecret && deploymentToken) {
-                allSecrets[deploymentSecret.name] = deploymentToken;
-            }
-
-            const secretPromises = Object.entries(allSecrets)
+            // 3. Set secrets
+            const secretPromises = Object.entries(secretValues)
                 .map(([name, value]) => value ? setRepositorySecret(token, selectedRepo.owner.login, selectedRepo.name, name, value) : Promise.resolve());
             await Promise.all(secretPromises);
 
@@ -210,8 +169,11 @@ const DeploymentWizard: React.FC<WizardProps> = ({ repos, token, onClose, onComp
         }
     };
     
-    const needsCliValidation = selectedTarget === DeploymentTarget.Vercel || selectedTarget === DeploymentTarget.Railway;
-    const canProceedFromConfig = !isGenerating && !generationError && (!needsCliValidation || tokenValidationResult === 'valid');
+    const handleSecretChange = (name: string, value: string) => {
+        setSecretValues(prev => ({ ...prev, [name]: value }));
+    };
+
+    const canProceedFromConfig = !isGenerating && !generationError;
 
     const deploymentTargets = [
         { id: DeploymentTarget.Vercel, name: 'Vercel', icon: VercelIcon },
@@ -263,30 +225,36 @@ const DeploymentWizard: React.FC<WizardProps> = ({ repos, token, onClose, onComp
                     {!isGenerating && generatedYaml && (
                         <div className="space-y-4">
                             {requiredVariables.length > 0 && (
-                                <fieldset className="p-3 border rounded-lg">
-                                    <legend className="px-2 text-sm font-medium">Required Variables</legend>
+                                <fieldset className="p-3 border rounded-lg border-gray-300 dark:border-gray-600">
+                                    <legend className="px-2 text-sm font-medium text-gray-700 dark:text-gray-300">Required Variables</legend>
                                     {requiredVariables.map(v => (
                                         <div key={v.name} className="mb-2">
                                             <label htmlFor={v.name} className="block text-xs font-medium text-gray-700 dark:text-gray-300">{v.name}</label>
-                                            <input id={v.name} type="text" value={variableValues[v.name] || ''} onChange={e => setVariableValues(p => ({...p, [v.name]: e.target.value}))} className="w-full text-sm p-2 bg-gray-50 dark:bg-gray-900 border-gray-300 dark:border-gray-600 rounded-md" />
+                                            <input id={v.name} type="text" value={variableValues[v.name] || ''} onChange={e => setVariableValues(p => ({...p, [v.name]: e.target.value}))} className="w-full text-sm p-2 bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 rounded-md" />
                                         </div>
                                     ))}
                                 </fieldset>
                             )}
-                            {needsCliValidation && (
-                                <fieldset className="p-3 border rounded-lg">
-                                    <legend className="px-2 text-sm font-medium">Deployment Credentials</legend>
-                                    <label htmlFor="dep-token" className="block text-xs font-medium text-gray-700 dark:text-gray-300">
-                                        {selectedTarget} Token
-                                    </label>
-                                    <div className="flex items-center space-x-2">
-                                        <input id="dep-token" type="password" value={deploymentToken} onChange={e => setDeploymentToken(e.target.value)} className="flex-grow text-sm p-2 bg-gray-50 dark:bg-gray-900 border-gray-300 dark:border-gray-600 rounded-md" placeholder="Paste your token here" />
-                                        <button onClick={handleValidateToken} disabled={isTokenValidating || !deploymentToken} className="px-3 py-2 text-sm font-semibold text-white bg-gray-600 hover:bg-gray-700 rounded-md disabled:bg-gray-400">
-                                            {isTokenValidating ? 'Validating...' : 'Validate'}
-                                        </button>
+                             {requiredSecrets.length > 0 && (
+                                <fieldset className="p-3 border rounded-lg border-amber-500/50 dark:border-amber-600/50">
+                                    <legend className="px-2 text-sm font-medium text-amber-700 dark:text-amber-300">Required Secrets</legend>
+                                    <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">These sensitive values will be stored encrypted in your repository settings.</p>
+                                    <div className="space-y-3">
+                                        {requiredSecrets.map(secret => (
+                                            <div key={secret.name}>
+                                                <label htmlFor={`secret-${secret.name}`} className="block text-xs font-medium text-gray-700 dark:text-gray-300">{secret.name}</label>
+                                                <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">{secret.description}</p>
+                                                <input
+                                                    id={`secret-${secret.name}`}
+                                                    type="password"
+                                                    value={secretValues[secret.name] || ''}
+                                                    onChange={(e) => handleSecretChange(secret.name, e.target.value)}
+                                                    className="w-full text-sm p-2 bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 rounded-md"
+                                                    placeholder={`Enter value for ${secret.name}`}
+                                                />
+                                            </div>
+                                        ))}
                                     </div>
-                                    {tokenValidationResult === 'valid' && <p className="text-xs text-green-600 mt-1">Token is valid!</p>}
-                                    {tokenValidationResult === 'invalid' && <p className="text-xs text-red-600 mt-1">Validation Failed: {tokenValidationError}</p>}
                                 </fieldset>
                             )}
                         </div>
