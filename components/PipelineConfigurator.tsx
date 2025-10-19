@@ -2,7 +2,7 @@ import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { Repository, TechStack, DeploymentTarget, DeploymentEnvironment, RequiredVariable, RequiredSecret } from '../types';
 import { generateWorkflow, AdvancedTriggers } from '../services/geminiService';
 import { createWorkflowFile, setRepositoryVariable, setRepositorySecret, getWorkflowConfiguration, analyzeRepository } from '../services/githubService';
-import Editor from 'react-simple-code-editor';
+import * as SimpleCodeEditor from 'react-simple-code-editor';
 import Prism from 'prismjs';
 // This import will load the yaml grammar into the Prism object.
 import 'prismjs/components/prism-yaml.js';
@@ -11,6 +11,9 @@ import {
     EyeIcon, EyeSlashIcon, LogoIcon, ArrowPathIcon, XCircleIcon, XCircleIcon as XIcon,
     VercelIcon, GitHubIcon, RailwayIcon, HerokuIcon, AWSIcon, DocumentArrowUpIcon
 } from './icons';
+
+// The 'any' cast is a pragmatic way to handle the dynamic nature of CDN-served CJS/ESM modules.
+const Editor = (SimpleCodeEditor as any).default || SimpleCodeEditor;
 
 interface PipelineConfiguratorProps {
   repo: Repository;
